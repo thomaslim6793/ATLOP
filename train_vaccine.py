@@ -17,8 +17,8 @@ from tqdm import tqdm
 
 
 def train(args, model, train_features, dev_features, test_features):
-    # Initialize wandb
-    wandb.init(project="atlop-vaccine", name="vaccine-pathogen-relation-extraction")
+    # Initialize wandb (disabled)
+    # wandb.init(project="atlop-vaccine", name="vaccine-pathogen-relation-extraction")
     
     def finetune(features, optimizer, scheduler, num_epoch, num_steps):
         best_score = -1

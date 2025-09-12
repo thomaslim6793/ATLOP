@@ -69,7 +69,13 @@ def official_evaluate(tmp, path):
         os.makedirs(truth_dir)
 
     fact_in_train_annotated = gen_train_facts(os.path.join(path, "train_annotated.json"), truth_dir)
-    fact_in_train_distant = gen_train_facts(os.path.join(path, "train_distant.json"), truth_dir)
+    
+    # Handle case where train_distant.json doesn't exist (e.g., for custom datasets)
+    train_distant_path = os.path.join(path, "train_distant.json")
+    if os.path.exists(train_distant_path):
+        fact_in_train_distant = gen_train_facts(train_distant_path, truth_dir)
+    else:
+        fact_in_train_distant = set([])  # Empty set if no distant supervision data
 
     truth = json.load(open(os.path.join(path, "dev.json")))
 
