@@ -156,7 +156,7 @@ def official_evaluate(tmp, path):
         re_f1 = 2.0 * re_p * re_r / (re_p + re_r)
 
     evi_p = 1.0 * correct_evidence / pred_evi if pred_evi > 0 else 0
-    evi_r = 1.0 * correct_evidence / tot_evidences
+    evi_r = 1.0 * correct_evidence / tot_evidences if tot_evidences > 0 else 0
     if evi_p + evi_r == 0:
         evi_f1 = 0
     else:
