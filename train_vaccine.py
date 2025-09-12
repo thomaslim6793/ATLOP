@@ -12,7 +12,7 @@ from model import DocREModel
 from utils import set_seed, collate_fn
 from prepro import read_docred
 from evaluation import to_official, official_evaluate
-import wandb
+# import wandb
 from tqdm import tqdm
 
 
@@ -44,7 +44,7 @@ def train(args, model, train_features, dev_features, test_features):
                     scheduler.step()
                     model.zero_grad()
                     num_steps += 1
-                wandb.log({"loss": loss.item()}, step=num_steps)
+                # wandb.log({"loss": loss.item()}, step=num_steps)
                 epoch_progress.set_postfix({"loss": f"{loss.item():.4f}", "step": num_steps})
                 if step == len(train_dataloader) - 1:
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
@@ -52,7 +52,7 @@ def train(args, model, train_features, dev_features, test_features):
                     if dev_score > best_score:
                         best_score = dev_score
                         torch.save(model.state_dict(), f'best_ign_f1.pt')
-                    wandb.log(dev_output, step=num_steps)
+                    # wandb.log(dev_output, step=num_steps)
 
     new_layer = ["extractor", "bilinear"]
     optimizer_grouped_parameters = [
