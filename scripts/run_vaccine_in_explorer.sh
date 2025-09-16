@@ -17,4 +17,7 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --num_train_epochs 10.0 \
 --seed 66 \
 --num_class 2 \
---device cuda
+--device cuda \
+--save_cache \
+--use_cache \
+--evaluation_steps 100

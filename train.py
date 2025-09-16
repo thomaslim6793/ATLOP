@@ -72,6 +72,13 @@ def train(args, model, train_features, dev_features, test_features):
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
                     print(dev_output)
+                    
+                    # Display test examples to monitor progress
+                    print(f"\n{'='*60}")
+                    print(f"TRAINING PROGRESS - TEST EXAMPLES (Step {num_steps})")
+                    print(f"{'='*60}")
+                    display_test_examples(args, model, test_features, num_examples=5)
+                    
                     if dev_score > best_score:
                         best_score = dev_score
                         pred = report(args, model, test_features)
@@ -271,7 +278,6 @@ def main():
                         help="Use cached preprocessed datasets if available.")
     parser.add_argument("--save_cache", action="store_true",
                         help="Save preprocessed datasets to cache.")
-
     args = parser.parse_args()
     wandb.init(project="DocRED")
 
