@@ -1,5 +1,25 @@
 #!/bin/bash
+#SBATCH --job-name=atlop_vaccine_pathogen_train
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:v100-pcie:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=8:00:00
+#SBATCH --output=atlop_vaccine_pathogen_train_%j.out
+#SBATCH --error=atlop_vaccine_pathogen_train_%j.err
+
+# Load modules
 module load cuda/12.3.0
+module load anaconda3/2024.06
+
+# Set up environment
+cd /home/hy.lim/indra_bert
+export CUDA_VISIBLE_DEVICES=0
+export WANDB_MODE=offline
+
+# Activate conda
+eval "$(conda shell.bash hook)"
+conda activate atlop
 
 python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --transformer_type bert \
