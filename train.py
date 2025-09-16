@@ -241,12 +241,18 @@ def main():
                         help="random seed for initialization")
     parser.add_argument("--num_class", type=int, default=97,
                         help="Number of relation types in dataset.")
+    parser.add_argument("--device", type=str, default="cuda",
+                        help="Device to use for training (cuda or cpu).")
 
     args = parser.parse_args()
     wandb.init(project="DocRED")
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    args.n_gpu = torch.cuda.device_count()
+    if args.device == "cuda" and torch.cuda.is_available():
+        device = torch.device("cuda:0")
+        args.n_gpu = torch.cuda.device_count()
+    else:
+        device = torch.device("cpu")
+        args.n_gpu = 0
     args.device = device
 
     config = AutoConfig.from_pretrained(
