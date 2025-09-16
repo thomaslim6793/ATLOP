@@ -7,7 +7,8 @@ from torch.cuda.amp import autocast, GradScaler
 import ujson as json
 from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoModel, AutoTokenizer
-from transformers import AdamW, get_linear_schedule_with_warmup
+from torch.optim import AdamW
+from transformers import get_linear_schedule_with_warmup
 from model import DocREModel
 from utils import set_seed, collate_fn
 from prepro import read_docred
