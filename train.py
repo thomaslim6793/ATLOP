@@ -140,26 +140,28 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         print(f"'{input_text[:200]}{'...' if len(input_text) > 200 else ''}'")
         print(f"Input length: {len(test_feature['input_ids'])} tokens")
         
-        # Extract entity names from tokenized input
+        # Load original test data to get correct entity names
+        test_data_path = os.path.join(args.data_dir, "test.json")
         entity_names = []
-        current_entity = []
-        in_entity = False
         
-        for token in input_tokens:
-            if token == '*':
-                if in_entity:
-                    # End of entity
-                    if current_entity:
-                        entity_names.append(' '.join(current_entity))
-                        current_entity = []
-                    in_entity = False
-                else:
-                    # Start of entity
-                    in_entity = True
-            elif in_entity:
-                current_entity.append(token)
+        try:
+            with open(test_data_path, 'r') as f:
+                original_test_data = json.load(f)
+            
+            if i < len(original_test_data):
+                original_doc = original_test_data[i]
+                if 'vertexSet' in original_doc:
+                    for entity_group in original_doc['vertexSet']:
+                        if entity_group:  # Check if entity group is not empty
+                            entity_names.append(entity_group[0]['name'])
+        except:
+            pass
         
-        print(f"Extracted entities: {entity_names}")
+        # Fallback to generic names if we can't load original data
+        if not entity_names:
+            entity_names = [f"Entity_{j}" for j in range(len(test_feature['entity_pos']))]
+        
+        print(f"Entity names (from original data): {entity_names}")
         
         # Get model predictions
         inputs = {'input_ids': batch[0].to(args.device),
