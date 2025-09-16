@@ -126,23 +126,24 @@ def display_test_examples(args, model, test_features, num_examples=3):
         
         # Display input information
         print(f"Title: {test_feature.get('title', 'N/A')}")
-        print(f"Number of entities: {len(test_feature['vertexSet'])}")
-        print(f"Number of relations: {len(test_feature.get('labels', []))}")
+        print(f"Number of entities: {len(test_feature['entity_pos'])}")
+        print(f"Number of entity pairs: {len(test_feature['hts'])}")
         
-        # Show entity information
-        print("\nEntities:")
-        for j, entity in enumerate(test_feature['vertexSet']):
-            entity_text = " ".join([test_feature['sents'][pos[0]][pos[1]:pos[2]] for pos in entity])
-            print(f"  Entity {j}: {entity_text}")
+        # Show entity information (we can't show entity text from preprocessed data)
+        print(f"\nEntity positions: {len(test_feature['entity_pos'])} entities")
+        print(f"Entity pairs (hts): {len(test_feature['hts'])} pairs")
         
-        # Show ground truth relations
-        if 'labels' in test_feature:
-            print("\nGround Truth Relations:")
-            for label in test_feature['labels']:
-                h_idx, t_idx, rel = label['h'], label['t'], label['r']
-                h_entity = " ".join([test_feature['sents'][pos[0]][pos[1]:pos[2]] for pos in test_feature['vertexSet'][h_idx]])
-                t_entity = " ".join([test_feature['sents'][pos[0]][pos[1]:pos[2]] for pos in test_feature['vertexSet'][t_idx]])
-                print(f"  {h_entity} --[{rel}]--> {t_entity}")
+        # Show ground truth relations (from labels)
+        if 'labels' in test_feature and len(test_feature['labels']) > 0:
+            print(f"\nGround Truth Relations: {len(test_feature['labels'])} relations")
+            # Show first few relations
+            for i, label in enumerate(test_feature['labels'][:3]):  # Show first 3
+                if isinstance(label, list) and len(label) == 2:  # Binary classification
+                    no_rel_prob, rel_prob = label
+                    relation_type = "RELATION" if rel_prob > 0.5 else "NO_RELATION"
+                    print(f"  Relation {i+1}: {relation_type} (prob: {max(no_rel_prob, rel_prob):.3f})")
+        else:
+            print("\nNo ground truth relations available")
         
         # Get model predictions
         inputs = {'input_ids': batch[0].to(args.device),
@@ -159,14 +160,17 @@ def display_test_examples(args, model, test_features, num_examples=3):
         
         # Display predicted logits
         print(f"\nPredicted Logits (shape: {pred.shape}):")
-        print(f"  Logits: {pred[0]}")
         
-        # Show predicted relations (assuming binary classification)
-        if pred.shape[1] == 2:  # Binary classification
-            probabilities = torch.softmax(torch.tensor(pred[0]), dim=0)
-            print(f"  Probabilities: [No Relation: {probabilities[0]:.4f}, Relation: {probabilities[1]:.4f}]")
-            predicted_class = "Relation" if probabilities[1] > 0.5 else "No Relation"
-            print(f"  Predicted: {predicted_class}")
+        # Show predictions for all entity pairs
+        print(f"Predictions (all {len(pred)} entity pairs):")
+        for pair_idx in range(len(pred)):
+            if pred.shape[1] == 2:  # Binary classification
+                probabilities = torch.softmax(torch.tensor(pred[pair_idx]), dim=0)
+                predicted_class = "RELATION" if probabilities[1] > 0.5 else "NO_RELATION"
+                confidence = max(probabilities[0], probabilities[1]).item()
+                print(f"  Pair {pair_idx+1}: {predicted_class} (conf: {confidence:.3f})")
+            else:
+                print(f"  Pair {pair_idx+1}: Logits {pred[pair_idx]}")
         
         print("-" * 60)
 
