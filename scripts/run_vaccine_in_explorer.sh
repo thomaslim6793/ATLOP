@@ -14,7 +14,7 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --learning_rate 5e-5 \
 --max_grad_norm 1.0 \
 --warmup_ratio 0.06 \
---num_train_epochs 30.0 \
+--num_train_epochs 10.0 \
 --seed 66 \
 --num_class 2 \
 --device cuda

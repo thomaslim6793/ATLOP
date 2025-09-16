@@ -14,6 +14,9 @@ from utils import set_seed, collate_fn
 from prepro import read_docred
 from evaluation import to_official, official_evaluate
 import wandb
+from tqdm import tqdm
+import pickle
+import os
 
 
 def train(args, model, train_features, dev_features, test_features):
@@ -26,9 +29,16 @@ def train(args, model, train_features, dev_features, test_features):
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         print("Total steps: {}".format(total_steps))
         print("Warmup steps: {}".format(warmup_steps))
-        for epoch in train_iterator:
+        
+        # Create progress bar for epochs
+        epoch_pbar = tqdm(train_iterator, desc="Training", unit="epoch")
+        for epoch in epoch_pbar:
             model.zero_grad()
-            for step, batch in enumerate(train_dataloader):
+            epoch_pbar.set_description(f"Epoch {epoch+1}/{int(num_epoch)}")
+            
+            # Create progress bar for steps within each epoch
+            step_pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1} Steps", leave=False)
+            for step, batch in enumerate(step_pbar):
                 model.train()
                 inputs = {'input_ids': batch[0].to(args.device),
                           'attention_mask': batch[1].to(args.device),
@@ -53,7 +63,12 @@ def train(args, model, train_features, dev_features, test_features):
                     model.zero_grad()
                     num_steps += 1
                 wandb.log({"loss": loss.item()}, step=num_steps)
+                
+                # Update step progress bar with loss
+                step_pbar.set_postfix({"loss": f"{loss.item():.4f}", "step": num_steps})
+                
                 if (step + 1) == len(train_dataloader) - 1 or (args.evaluation_steps > 0 and num_steps % args.evaluation_steps == 0 and step % args.gradient_accumulation_steps == 0):
+                    step_pbar.close()  # Close step progress bar before evaluation
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
                     print(dev_output)
@@ -64,6 +79,13 @@ def train(args, model, train_features, dev_features, test_features):
                             json.dump(pred, fh)
                         if args.save_path != "":
                             torch.save(model.state_dict(), args.save_path)
+                    # Recreate step progress bar after evaluation
+                    step_pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1} Steps", leave=False, initial=step+1)
+            
+            step_pbar.close()  # Close step progress bar at end of epoch
+            epoch_pbar.set_postfix({"best_f1": f"{best_score:.4f}"})
+        
+        epoch_pbar.close()  # Close epoch progress bar
         return num_steps
 
     new_layer = ["extractor", "bilinear"]
@@ -146,7 +168,7 @@ def evaluate(args, model, features, tag="dev"):
 
     dataloader = DataLoader(features, batch_size=args.test_batch_size, shuffle=False, collate_fn=collate_fn, drop_last=False)
     preds = []
-    for batch in dataloader:
+    for batch in tqdm(dataloader, desc=f"Evaluating {tag}", leave=False):
         model.eval()
 
         inputs = {'input_ids': batch[0].to(args.device),
@@ -176,7 +198,7 @@ def report(args, model, features):
 
     dataloader = DataLoader(features, batch_size=args.test_batch_size, shuffle=False, collate_fn=collate_fn, drop_last=False)
     preds = []
-    for batch in dataloader:
+    for batch in tqdm(dataloader, desc="Generating predictions", leave=False):
         model.eval()
 
         inputs = {'input_ids': batch[0].to(args.device),
@@ -243,6 +265,12 @@ def main():
                         help="Number of relation types in dataset.")
     parser.add_argument("--device", type=str, default="cuda",
                         help="Device to use for training (cuda or cpu).")
+    parser.add_argument("--cache_dir", type=str, default="./cache",
+                        help="Directory to cache preprocessed datasets.")
+    parser.add_argument("--use_cache", action="store_true",
+                        help="Use cached preprocessed datasets if available.")
+    parser.add_argument("--save_cache", action="store_true",
+                        help="Save preprocessed datasets to cache.")
 
     args = parser.parse_args()
     wandb.init(project="DocRED")
@@ -265,12 +293,45 @@ def main():
 
     read = read_docred
 
-    train_file = os.path.join(args.data_dir, args.train_file)
-    dev_file = os.path.join(args.data_dir, args.dev_file)
-    test_file = os.path.join(args.data_dir, args.test_file)
-    train_features = read(train_file, tokenizer, max_seq_length=args.max_seq_length)
-    dev_features = read(dev_file, tokenizer, max_seq_length=args.max_seq_length)
-    test_features = read(test_file, tokenizer, max_seq_length=args.max_seq_length)
+    # Create cache directory if it doesn't exist
+    if args.save_cache or args.use_cache:
+        os.makedirs(args.cache_dir, exist_ok=True)
+
+    # Generate cache filenames based on dataset and model parameters
+    cache_suffix = f"_{args.transformer_type}_{args.max_seq_length}_{args.model_name_or_path.split('/')[-1]}"
+    train_cache_file = os.path.join(args.cache_dir, f"train_features{cache_suffix}.pkl")
+    dev_cache_file = os.path.join(args.cache_dir, f"dev_features{cache_suffix}.pkl")
+    test_cache_file = os.path.join(args.cache_dir, f"test_features{cache_suffix}.pkl")
+
+    # Load or process datasets
+    if args.use_cache and os.path.exists(train_cache_file) and os.path.exists(dev_cache_file) and os.path.exists(test_cache_file):
+        print("Loading cached preprocessed datasets...")
+        with open(train_cache_file, 'rb') as f:
+            train_features = pickle.load(f)
+        with open(dev_cache_file, 'rb') as f:
+            dev_features = pickle.load(f)
+        with open(test_cache_file, 'rb') as f:
+            test_features = pickle.load(f)
+        print("Cached datasets loaded successfully!")
+    else:
+        print("Processing datasets (this may take a while)...")
+        train_file = os.path.join(args.data_dir, args.train_file)
+        dev_file = os.path.join(args.data_dir, args.dev_file)
+        test_file = os.path.join(args.data_dir, args.test_file)
+        
+        train_features = read(train_file, tokenizer, max_seq_length=args.max_seq_length)
+        dev_features = read(dev_file, tokenizer, max_seq_length=args.max_seq_length)
+        test_features = read(test_file, tokenizer, max_seq_length=args.max_seq_length)
+        
+        if args.save_cache:
+            print("Saving preprocessed datasets to cache...")
+            with open(train_cache_file, 'wb') as f:
+                pickle.dump(train_features, f)
+            with open(dev_cache_file, 'wb') as f:
+                pickle.dump(dev_features, f)
+            with open(test_cache_file, 'wb') as f:
+                pickle.dump(test_features, f)
+            print("Datasets cached successfully!")
 
     model = AutoModel.from_pretrained(
         args.model_name_or_path,
