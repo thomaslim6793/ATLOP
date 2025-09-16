@@ -140,6 +140,27 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         print(f"'{input_text[:200]}{'...' if len(input_text) > 200 else ''}'")
         print(f"Input length: {len(test_feature['input_ids'])} tokens")
         
+        # Extract entity names from tokenized input
+        entity_names = []
+        current_entity = []
+        in_entity = False
+        
+        for token in input_tokens:
+            if token == '*':
+                if in_entity:
+                    # End of entity
+                    if current_entity:
+                        entity_names.append(' '.join(current_entity))
+                        current_entity = []
+                    in_entity = False
+                else:
+                    # Start of entity
+                    in_entity = True
+            elif in_entity:
+                current_entity.append(token)
+        
+        print(f"Extracted entities: {entity_names}")
+        
         # Get model predictions
         inputs = {'input_ids': batch[0].to(args.device),
                   'attention_mask': batch[1].to(args.device),
@@ -149,14 +170,15 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         
         with torch.no_grad():
             with autocast():
-                pred, *_ = model(**inputs)
-                pred = pred.cpu().numpy()
+                output, raw_logits = model(**inputs)
+                pred = output[0].cpu().numpy()  # Processed predictions
+                raw_pred = raw_logits.cpu().numpy()  # Raw logits
                 pred[np.isnan(pred)] = 0
+                raw_pred[np.isnan(raw_pred)] = 0
         
-        # Display predictions with ground truth
+        # Display predictions with ground truth - one pair at a time with context
         print(f"\nEntity Pair Predictions:")
-        print(f"{'Pair':<6} {'Head':<15} {'Tail':<15} {'Ground Truth':<12} {'Predicted':<12} {'Confidence':<10}")
-        print("-" * 80)
+        print("=" * 80)
         
         for pair_idx in range(len(pred)):
             h_idx, t_idx = test_feature['hts'][pair_idx]
@@ -172,18 +194,43 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
                 gt_class = "Unknown"
             
             # Get prediction
-            if pred.shape[1] == 2:  # Binary classification
-                raw_logits = pred[pair_idx]
-                probabilities = torch.softmax(torch.tensor(pred[pair_idx]), dim=0)
+            if raw_pred.shape[1] == 2:  # Binary classification
+                raw_logits = raw_pred[pair_idx]  # Use raw logits
+                probabilities = torch.softmax(torch.tensor(raw_logits), dim=0)
                 predicted_class = "vaccine_targets" if probabilities[1] > 0.5 else "N/A"
                 confidence = max(probabilities[0], probabilities[1]).item()
                 
-                # Show entity indices and relation types with raw logits
-                print(f"{pair_idx+1:<6} {f'Entity_{h_idx}':<15} {f'Entity_{t_idx}':<15} {gt_class:<12} {predicted_class:<12} {confidence:.3f} (logits: [{raw_logits[0]:.3f}, {raw_logits[1]:.3f}])")
+                # Show entity names
+                head_name = entity_names[h_idx] if h_idx < len(entity_names) else f"Entity_{h_idx}"
+                tail_name = entity_names[t_idx] if t_idx < len(entity_names) else f"Entity_{t_idx}"
+                
+                print(f"\n--- PAIR {pair_idx+1} ---")
+                print(f"Head Entity: {head_name}")
+                print(f"Tail Entity: {tail_name}")
+                print(f"Ground Truth: {gt_class}")
+                print(f"Predicted: {predicted_class}")
+                print(f"Confidence: {confidence:.3f}")
+                print(f"Raw Logits: [{raw_logits[0]:.3f}, {raw_logits[1]:.3f}]")
+                
+                # Show input text with only this pair highlighted
+                print(f"\nInput text with entity markers:")
+                highlighted_text = input_text
+                # Replace other entity markers with regular text for this specific pair
+                for i, entity_name in enumerate(entity_names):
+                    if i != h_idx and i != t_idx:
+                        # Remove markers for other entities
+                        highlighted_text = highlighted_text.replace(f"* {entity_name} *", entity_name)
+                
+                print(f"'{highlighted_text[:200]}{'...' if len(highlighted_text) > 200 else ''}'")
+                print("-" * 60)
             else:
-                print(f"{pair_idx+1:<6} {f'Entity_{h_idx}':<15} {f'Entity_{t_idx}':<15} {gt_class:<12} {'Unknown':<12} {'N/A':<10}")
-        
-        print("-" * 60)
+                print(f"\n--- PAIR {pair_idx+1} ---")
+                print(f"Head Entity: Entity_{h_idx}")
+                print(f"Tail Entity: Entity_{t_idx}")
+                print(f"Ground Truth: {gt_class}")
+                print(f"Predicted: Unknown")
+                print(f"Confidence: N/A")
+                print("-" * 60)
 
 
 def evaluate(args, model, features, tag="dev"):
@@ -200,8 +247,8 @@ def evaluate(args, model, features, tag="dev"):
                   }
 
         with torch.no_grad():
-            pred, *_ = model(**inputs)
-            pred = pred.cpu().numpy()
+            output, raw_logits = model(**inputs)
+            pred = output[0].cpu().numpy()  # Use processed predictions for evaluation
             pred[np.isnan(pred)] = 0
             preds.append(pred)
 
@@ -230,8 +277,8 @@ def report(args, model, features):
                   }
 
         with torch.no_grad():
-            pred, *_ = model(**inputs)
-            pred = pred.cpu().numpy()
+            output, raw_logits = model(**inputs)
+            pred = output[0].cpu().numpy()  # Use processed predictions for report
             pred[np.isnan(pred)] = 0
             preds.append(pred)
 
