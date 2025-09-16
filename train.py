@@ -3,7 +3,7 @@ import os
 
 import numpy as np
 import torch
-from apex import amp
+from torch.cuda.amp import autocast, GradScaler
 import ujson as json
 from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoModel, AutoTokenizer
@@ -16,7 +16,7 @@ import wandb
 
 
 def train(args, model, train_features, dev_features, test_features):
-    def finetune(features, optimizer, num_epoch, num_steps):
+    def finetune(features, optimizer, num_epoch, num_steps, scaler):
         best_score = -1
         train_dataloader = DataLoader(features, batch_size=args.train_batch_size, shuffle=True, collate_fn=collate_fn, drop_last=True)
         train_iterator = range(int(num_epoch))
@@ -35,14 +35,19 @@ def train(args, model, train_features, dev_features, test_features):
                           'entity_pos': batch[3],
                           'hts': batch[4],
                           }
-                outputs = model(**inputs)
-                loss = outputs[0] / args.gradient_accumulation_steps
-                with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                
+                with autocast():
+                    outputs = model(**inputs)
+                    loss = outputs[0] / args.gradient_accumulation_steps
+                
+                scaler.scale(loss).backward()
+                
                 if step % args.gradient_accumulation_steps == 0:
                     if args.max_grad_norm > 0:
-                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
-                    optimizer.step()
+                        scaler.unscale_(optimizer)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    scaler.step(optimizer)
+                    scaler.update()
                     scheduler.step()
                     model.zero_grad()
                     num_steps += 1
@@ -67,11 +72,73 @@ def train(args, model, train_features, dev_features, test_features):
     ]
 
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
+    scaler = GradScaler()
     num_steps = 0
     set_seed(args)
     model.zero_grad()
-    finetune(train_features, optimizer, args.num_train_epochs, num_steps)
+    finetune(train_features, optimizer, args.num_train_epochs, num_steps, scaler)
+
+
+def display_test_examples(args, model, test_features, num_examples=3):
+    """Display a few test examples with their inputs and predicted logits"""
+    print("\n" + "="*80)
+    print("DISPLAYING TEST EXAMPLES WITH PREDICTED LOGITS")
+    print("="*80)
+    
+    model.eval()
+    dataloader = DataLoader(test_features[:num_examples], batch_size=1, shuffle=False, collate_fn=collate_fn, drop_last=False)
+    
+    for i, batch in enumerate(dataloader):
+        print(f"\n--- EXAMPLE {i+1} ---")
+        
+        # Get the original test feature for this example
+        test_feature = test_features[i]
+        
+        # Display input information
+        print(f"Title: {test_feature.get('title', 'N/A')}")
+        print(f"Number of entities: {len(test_feature['vertexSet'])}")
+        print(f"Number of relations: {len(test_feature.get('labels', []))}")
+        
+        # Show entity information
+        print("\nEntities:")
+        for j, entity in enumerate(test_feature['vertexSet']):
+            entity_text = " ".join([test_feature['sents'][pos[0]][pos[1]:pos[2]] for pos in entity])
+            print(f"  Entity {j}: {entity_text}")
+        
+        # Show ground truth relations
+        if 'labels' in test_feature:
+            print("\nGround Truth Relations:")
+            for label in test_feature['labels']:
+                h_idx, t_idx, rel = label['h'], label['t'], label['r']
+                h_entity = " ".join([test_feature['sents'][pos[0]][pos[1]:pos[2]] for pos in test_feature['vertexSet'][h_idx]])
+                t_entity = " ".join([test_feature['sents'][pos[0]][pos[1]:pos[2]] for pos in test_feature['vertexSet'][t_idx]])
+                print(f"  {h_entity} --[{rel}]--> {t_entity}")
+        
+        # Get model predictions
+        inputs = {'input_ids': batch[0].to(args.device),
+                  'attention_mask': batch[1].to(args.device),
+                  'entity_pos': batch[3],
+                  'hts': batch[4],
+                  }
+        
+        with torch.no_grad():
+            with autocast():
+                pred, *_ = model(**inputs)
+                pred = pred.cpu().numpy()
+                pred[np.isnan(pred)] = 0
+        
+        # Display predicted logits
+        print(f"\nPredicted Logits (shape: {pred.shape}):")
+        print(f"  Logits: {pred[0]}")
+        
+        # Show predicted relations (assuming binary classification)
+        if pred.shape[1] == 2:  # Binary classification
+            probabilities = torch.softmax(torch.tensor(pred[0]), dim=0)
+            print(f"  Probabilities: [No Relation: {probabilities[0]:.4f}, Relation: {probabilities[1]:.4f}]")
+            predicted_class = "Relation" if probabilities[1] > 0.5 else "No Relation"
+            print(f"  Predicted: {predicted_class}")
+        
+        print("-" * 60)
 
 
 def evaluate(args, model, features, tag="dev"):
@@ -214,14 +281,23 @@ def main():
 
     if args.load_path == "":  # Training
         train(args, model, train_features, dev_features, test_features)
+        # Display test examples after training
+        print("\n" + "="*80)
+        print("TRAINING COMPLETED - DISPLAYING TEST EXAMPLES")
+        print("="*80)
+        display_test_examples(args, model, test_features, num_examples=3)
     else:  # Testing
-        model = amp.initialize(model, opt_level="O1", verbosity=0)
         model.load_state_dict(torch.load(args.load_path))
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
         print(dev_output)
         pred = report(args, model, test_features)
         with open("result.json", "w") as fh:
             json.dump(pred, fh)
+        # Display test examples after evaluation
+        print("\n" + "="*80)
+        print("EVALUATION COMPLETED - DISPLAYING TEST EXAMPLES")
+        print("="*80)
+        display_test_examples(args, model, test_features, num_examples=3)
 
 
 if __name__ == "__main__":
