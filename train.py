@@ -140,7 +140,7 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         # Remove entity markers for the initial display
         original_text = input_text.replace(' * ', ' ').replace('* ', '').replace(' *', '')
         print(f"\nOriginal input text:")
-        print(f"'{original_text[:200]}{'...' if len(original_text) > 200 else ''}'")
+        print(f"'{original_text[:300]}{'...' if len(original_text) > 200 else ''}'")
         print(f"Input length: {len(test_feature['input_ids'])} tokens")
         
         # Load original test data to get correct entity names
@@ -226,7 +226,7 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
                         # Remove markers for other entities
                         highlighted_text = highlighted_text.replace(f"* {entity_name} *", entity_name)
                 
-                print(f"'{highlighted_text[:200]}{'...' if len(highlighted_text) > 200 else ''}'")
+                print(f"'{highlighted_text[:300]}{'...' if len(highlighted_text) > 200 else ''}'")
                 print("-" * 60)
             else:
                 print(f"\n--- PAIR {pair_idx+1} ---")
