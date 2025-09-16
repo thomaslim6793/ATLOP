@@ -1,7 +1,7 @@
 #!/bin/bash
 module load cuda/12.3.0
 
-python train_vaccine.py --data_dir ./dataset/vaccine_pathogen_docred \
+python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --transformer_type bert \
 --model_name_or_path microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext \
 --train_file train_annotated.json \
