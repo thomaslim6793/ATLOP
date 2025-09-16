@@ -19,7 +19,7 @@ import pickle
 import os
 
 
-def train(args, model, train_features, dev_features, test_features):
+def train(args, model, train_features, dev_features, test_features, tokenizer):
     def finetune(features, optimizer, num_epoch, num_steps, scaler):
         best_score = -1
         train_dataloader = DataLoader(features, batch_size=args.train_batch_size, shuffle=True, collate_fn=collate_fn, drop_last=True)
@@ -77,7 +77,7 @@ def train(args, model, train_features, dev_features, test_features):
                     print(f"\n{'='*60}")
                     print(f"TRAINING PROGRESS - TEST EXAMPLES (Step {num_steps})")
                     print(f"{'='*60}")
-                    display_test_examples(args, model, test_features, num_examples=5)
+                    display_test_examples(args, model, test_features, tokenizer, num_examples=5)
                     
                     if dev_score > best_score:
                         best_score = dev_score
@@ -109,11 +109,15 @@ def train(args, model, train_features, dev_features, test_features):
     finetune(train_features, optimizer, args.num_train_epochs, num_steps, scaler)
 
 
-def display_test_examples(args, model, test_features, num_examples=3):
+def display_test_examples(args, model, test_features, tokenizer, num_examples=3):
     """Display a few test examples with their inputs and predicted logits"""
     print("\n" + "="*80)
     print("DISPLAYING TEST EXAMPLES WITH PREDICTED LOGITS")
     print("="*80)
+    
+    # Load relation mapping
+    rel2id = json.load(open('meta/rel2id.json', 'r'))
+    id2rel = {v: k for k, v in rel2id.items()}
     
     model.eval()
     dataloader = DataLoader(test_features[:num_examples], batch_size=1, shuffle=False, collate_fn=collate_fn, drop_last=False)
@@ -129,21 +133,12 @@ def display_test_examples(args, model, test_features, num_examples=3):
         print(f"Number of entities: {len(test_feature['entity_pos'])}")
         print(f"Number of entity pairs: {len(test_feature['hts'])}")
         
-        # Show entity information (we can't show entity text from preprocessed data)
-        print(f"\nEntity positions: {len(test_feature['entity_pos'])} entities")
-        print(f"Entity pairs (hts): {len(test_feature['hts'])} pairs")
-        
-        # Show ground truth relations (from labels)
-        if 'labels' in test_feature and len(test_feature['labels']) > 0:
-            print(f"\nGround Truth Relations: {len(test_feature['labels'])} relations")
-            # Show first few relations
-            for i, label in enumerate(test_feature['labels'][:3]):  # Show first 3
-                if isinstance(label, list) and len(label) == 2:  # Binary classification
-                    no_rel_prob, rel_prob = label
-                    relation_type = "RELATION" if rel_prob > 0.5 else "NO_RELATION"
-                    print(f"  Relation {i+1}: {relation_type} (prob: {max(no_rel_prob, rel_prob):.3f})")
-        else:
-            print("\nNo ground truth relations available")
+        # Show the actual input text with entity markers
+        input_tokens = tokenizer.convert_ids_to_tokens(test_feature['input_ids'])
+        input_text = tokenizer.convert_tokens_to_string(input_tokens)
+        print(f"\nInput text with entity markers:")
+        print(f"'{input_text[:200]}{'...' if len(input_text) > 200 else ''}'")
+        print(f"Input length: {len(test_feature['input_ids'])} tokens")
         
         # Get model predictions
         inputs = {'input_ids': batch[0].to(args.device),
@@ -158,19 +153,35 @@ def display_test_examples(args, model, test_features, num_examples=3):
                 pred = pred.cpu().numpy()
                 pred[np.isnan(pred)] = 0
         
-        # Display predicted logits
-        print(f"\nPredicted Logits (shape: {pred.shape}):")
+        # Display predictions with ground truth
+        print(f"\nEntity Pair Predictions:")
+        print(f"{'Pair':<6} {'Head':<15} {'Tail':<15} {'Ground Truth':<12} {'Predicted':<12} {'Confidence':<10}")
+        print("-" * 80)
         
-        # Show predictions for all entity pairs
-        print(f"Predictions (all {len(pred)} entity pairs):")
         for pair_idx in range(len(pred)):
-            if pred.shape[1] == 2:  # Binary classification
-                probabilities = torch.softmax(torch.tensor(pred[pair_idx]), dim=0)
-                predicted_class = "RELATION" if probabilities[1] > 0.5 else "NO_RELATION"
-                confidence = max(probabilities[0], probabilities[1]).item()
-                print(f"  Pair {pair_idx+1}: {predicted_class} (conf: {confidence:.3f})")
+            h_idx, t_idx = test_feature['hts'][pair_idx]
+            
+            # Get ground truth label
+            if 'labels' in test_feature and pair_idx < len(test_feature['labels']):
+                gt_label = test_feature['labels'][pair_idx]
+                if isinstance(gt_label, list) and len(gt_label) == 2:
+                    gt_class = "vaccine_targets" if gt_label[1] > 0.5 else "N/A"
+                else:
+                    gt_class = "Unknown"
             else:
-                print(f"  Pair {pair_idx+1}: Logits {pred[pair_idx]}")
+                gt_class = "Unknown"
+            
+            # Get prediction
+            if pred.shape[1] == 2:  # Binary classification
+                raw_logits = pred[pair_idx]
+                probabilities = torch.softmax(torch.tensor(pred[pair_idx]), dim=0)
+                predicted_class = "vaccine_targets" if probabilities[1] > 0.5 else "N/A"
+                confidence = max(probabilities[0], probabilities[1]).item()
+                
+                # Show entity indices and relation types with raw logits
+                print(f"{pair_idx+1:<6} {f'Entity_{h_idx}':<15} {f'Entity_{t_idx}':<15} {gt_class:<12} {predicted_class:<12} {confidence:.3f} (logits: [{raw_logits[0]:.3f}, {raw_logits[1]:.3f}])")
+            else:
+                print(f"{pair_idx+1:<6} {f'Entity_{h_idx}':<15} {f'Entity_{t_idx}':<15} {gt_class:<12} {'Unknown':<12} {'N/A':<10}")
         
         print("-" * 60)
 
@@ -358,12 +369,12 @@ def main():
     model.to(0)
 
     if args.load_path == "":  # Training
-        train(args, model, train_features, dev_features, test_features)
+        train(args, model, train_features, dev_features, test_features, tokenizer)
         # Display test examples after training
         print("\n" + "="*80)
         print("TRAINING COMPLETED - DISPLAYING TEST EXAMPLES")
         print("="*80)
-        display_test_examples(args, model, test_features, num_examples=3)
+        display_test_examples(args, model, test_features, tokenizer, num_examples=3)
     else:  # Testing
         model.load_state_dict(torch.load(args.load_path))
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
@@ -375,7 +386,7 @@ def main():
         print("\n" + "="*80)
         print("EVALUATION COMPLETED - DISPLAYING TEST EXAMPLES")
         print("="*80)
-        display_test_examples(args, model, test_features, num_examples=3)
+        display_test_examples(args, model, test_features, tokenizer, num_examples=3)
 
 
 if __name__ == "__main__":
