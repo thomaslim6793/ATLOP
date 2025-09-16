@@ -49,7 +49,7 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                 
                 with autocast():
                     outputs = model(**inputs)
-                    loss = outputs[0] / args.gradient_accumulation_steps
+                    loss = outputs['loss'] / args.gradient_accumulation_steps
                 
                 scaler.scale(loss).backward()
                 
@@ -170,9 +170,9 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         
         with torch.no_grad():
             with autocast():
-                output, raw_logits = model(**inputs)
-                pred = output[0].cpu().numpy()  # Processed predictions
-                raw_pred = raw_logits.cpu().numpy()  # Raw logits
+                outputs = model(**inputs)
+                pred = outputs['processed_logits'].cpu().numpy()  # Processed predictions
+                raw_pred = outputs['raw_logits'].cpu().numpy()  # Raw logits
                 pred[np.isnan(pred)] = 0
                 raw_pred[np.isnan(raw_pred)] = 0
         
@@ -247,8 +247,8 @@ def evaluate(args, model, features, tag="dev"):
                   }
 
         with torch.no_grad():
-            output, raw_logits = model(**inputs)
-            pred = output[0].cpu().numpy()  # Use processed predictions for evaluation
+            outputs = model(**inputs)
+            pred = outputs['processed_logits'].cpu().numpy()  # Use processed predictions for evaluation
             pred[np.isnan(pred)] = 0
             preds.append(pred)
 
@@ -277,8 +277,8 @@ def report(args, model, features):
                   }
 
         with torch.no_grad():
-            output, raw_logits = model(**inputs)
-            pred = output[0].cpu().numpy()  # Use processed predictions for report
+            outputs = model(**inputs)
+            pred = outputs['processed_logits'].cpu().numpy()  # Use processed predictions for report
             pred[np.isnan(pred)] = 0
             preds.append(pred)
 

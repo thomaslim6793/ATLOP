@@ -103,10 +103,16 @@ class DocREModel(nn.Module):
         logits = self.bilinear(bl)
 
         processed_logits = self.loss_fnt.get_label(logits, num_labels=self.num_labels)
-        output = (processed_logits,)
+        
+        result = {
+            'processed_logits': processed_logits,
+            'raw_logits': logits
+        }
+        
         if labels is not None:
             labels = [torch.tensor(label) for label in labels]
             labels = torch.cat(labels, dim=0).to(logits)
             loss = self.loss_fnt(logits.float(), labels.float())
-            output = (loss.to(sequence_output),) + output
-        return output, logits  # Return both processed and raw logits
+            result['loss'] = loss.to(sequence_output)
+        
+        return result
