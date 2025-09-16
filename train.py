@@ -90,6 +90,13 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                     step_pbar = tqdm(train_dataloader, desc=f"Epoch {epoch+1} Steps", leave=False, initial=step+1)
             
             step_pbar.close()  # Close step progress bar at end of epoch
+            
+            # Display test examples at the end of each epoch
+            print(f"\n{'='*80}")
+            print(f"END OF EPOCH {epoch+1} - DISPLAYING TEST EXAMPLES")
+            print(f"{'='*80}")
+            display_test_examples(args, model, test_features, tokenizer, num_examples=5)
+            
             epoch_pbar.set_postfix({"best_f1": f"{best_score:.4f}"})
         
         epoch_pbar.close()  # Close epoch progress bar
@@ -332,7 +339,7 @@ def main():
     parser.add_argument("--num_train_epochs", default=30.0, type=float,
                         help="Total number of training epochs to perform.")
     parser.add_argument("--evaluation_steps", default=-1, type=int,
-                        help="Number of training steps between evaluations.")
+                        help="Number of training steps between evaluations. Set to -1 to disable evaluation during training.")
     parser.add_argument("--seed", type=int, default=66,
                         help="random seed for initialization")
     parser.add_argument("--num_class", type=int, default=97,

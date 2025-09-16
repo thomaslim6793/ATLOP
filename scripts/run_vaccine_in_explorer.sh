@@ -20,4 +20,3 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --device cuda \
 --save_cache \
 --use_cache \
---evaluation_steps 200
