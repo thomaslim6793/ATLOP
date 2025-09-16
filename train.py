@@ -133,11 +133,14 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         print(f"Number of entities: {len(test_feature['entity_pos'])}")
         print(f"Number of entity pairs: {len(test_feature['hts'])}")
         
-        # Show the actual input text with entity markers
+        # Show the original input text (without entity markers)
         input_tokens = tokenizer.convert_ids_to_tokens(test_feature['input_ids'])
         input_text = tokenizer.convert_tokens_to_string(input_tokens)
-        print(f"\nInput text with entity markers:")
-        print(f"'{input_text[:200]}{'...' if len(input_text) > 200 else ''}'")
+        
+        # Remove entity markers for the initial display
+        original_text = input_text.replace(' * ', ' ').replace('* ', '').replace(' *', '')
+        print(f"\nOriginal input text:")
+        print(f"'{original_text[:200]}{'...' if len(original_text) > 200 else ''}'")
         print(f"Input length: {len(test_feature['input_ids'])} tokens")
         
         # Load original test data to get correct entity names
