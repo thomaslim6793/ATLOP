@@ -13,7 +13,7 @@ module load cuda/12.3.0
 module load anaconda3/2024.06
 
 # Set up environment
-cd /home/hy.lim/indra_bert
+cd /home/hy.lim/ATLOP
 export CUDA_VISIBLE_DEVICES=0
 export WANDB_MODE=offline
 
