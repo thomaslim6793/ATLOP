@@ -38,5 +38,6 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --seed 66 \
 --num_class 2 \
 --device cuda \
+--save_path ./best_vaccine_model.pth \
 --save_cache \
 --use_cache \
