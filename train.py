@@ -187,6 +187,12 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
                 raw_pred = outputs['raw_logits'].cpu().numpy()  # Raw logits
                 pred[np.isnan(pred)] = 0
                 raw_pred[np.isnan(raw_pred)] = 0
+
+        # Show the model-visible input (entities masked)
+        masked_tokens = tokenizer.convert_ids_to_tokens(outputs['masked_input_ids'][0].cpu())
+        masked_text = tokenizer.convert_tokens_to_string(masked_tokens)
+        print("Model-visible input (entities masked):")
+        print(f"'{masked_text}'")
         
         # Display predictions with ground truth - one pair at a time with context
         print(f"\nEntity Pair Predictions:")
@@ -370,7 +376,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(
         args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
     )
-
+    
     read = read_docred
 
     # Create cache directory if it doesn't exist
@@ -422,6 +428,7 @@ def main():
     config.cls_token_id = tokenizer.cls_token_id
     config.sep_token_id = tokenizer.sep_token_id
     config.transformer_type = args.transformer_type
+    config.mask_token_id = tokenizer.mask_token_id
 
     set_seed(args)
     model = DocREModel(config, model, num_labels=args.num_labels)
