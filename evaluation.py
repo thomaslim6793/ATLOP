@@ -59,7 +59,7 @@ def gen_train_facts(data_file_name, truth_dir):
     return fact_in_train
 
 
-def official_evaluate(tmp, path):
+def official_evaluate(tmp, path, split="dev"):
     '''
         Adapted from the official evaluation code
     '''
@@ -77,7 +77,7 @@ def official_evaluate(tmp, path):
     else:
         fact_in_train_distant = set([])  # Empty set if no distant supervision data
 
-    truth = json.load(open(os.path.join(path, "dev.json")))
+    truth = json.load(open(os.path.join(path, f"{split}.json")))
 
     std = {}
     tot_evidences = 0

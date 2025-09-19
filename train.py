@@ -67,7 +67,13 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                 # Update step progress bar with loss
                 step_pbar.set_postfix({"loss": f"{loss.item():.4f}", "step": num_steps})
                 
-                if (step + 1) == len(train_dataloader) - 1 or (args.evaluation_steps > 0 and num_steps % args.evaluation_steps == 0 and step % args.gradient_accumulation_steps == 0):
+                # Check if we should run evaluation
+                is_last_step_of_epoch = (step + 1) == len(train_dataloader)
+                is_evaluation_step = (args.evaluation_steps > 0 and 
+                                    num_steps % args.evaluation_steps == 0 and 
+                                    step % args.gradient_accumulation_steps == 0)
+                
+                if is_last_step_of_epoch or is_evaluation_step:
                     step_pbar.close()  # Close step progress bar before evaluation
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
@@ -77,7 +83,7 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                     print(f"\n{'='*60}")
                     print(f"TRAINING PROGRESS - TEST EXAMPLES (Step {num_steps})")
                     print(f"{'='*60}")
-                    display_test_examples(args, model, test_features, tokenizer, num_examples=5)
+                    print(display_test_examples(args, model, test_features, tokenizer, num_examples=5))
                     
                     if dev_score > best_score:
                         best_score = dev_score
@@ -95,7 +101,7 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
             print(f"\n{'='*80}")
             print(f"END OF EPOCH {epoch+1} - DISPLAYING TEST EXAMPLES")
             print(f"{'='*80}")
-            display_test_examples(args, model, test_features, tokenizer, num_examples=5)
+            print(display_test_examples(args, model, test_features, tokenizer, num_examples=5))
             
             epoch_pbar.set_postfix({"best_f1": f"{best_score:.4f}"})
         
@@ -116,11 +122,12 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
     finetune(train_features, optimizer, args.num_train_epochs, num_steps, scaler)
 
 
-def display_test_examples(args, model, test_features, tokenizer, num_examples=3):
+def display_test_examples(args, model, test_features, tokenizer, num_examples=1):
     """Display a few test examples with their inputs and predicted logits"""
-    print("\n" + "="*80)
-    print("DISPLAYING TEST EXAMPLES WITH PREDICTED LOGITS")
-    print("="*80)
+    output_lines = []
+    output_lines.append("\n" + "="*80)
+    output_lines.append("DISPLAYING TEST EXAMPLES WITH PREDICTED LOGITS")
+    output_lines.append("="*80)
     
     # Load relation mapping
     rel2id = json.load(open('meta/rel2id.json', 'r'))
@@ -130,15 +137,15 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
     dataloader = DataLoader(test_features[:num_examples], batch_size=1, shuffle=False, collate_fn=collate_fn, drop_last=False)
     
     for i, batch in enumerate(dataloader):
-        print(f"\n--- EXAMPLE {i+1} ---")
+        output_lines.append(f"\n--- EXAMPLE {i+1} ---")
         
         # Get the original test feature for this example
         test_feature = test_features[i]
         
         # Display input information
-        print(f"Title: {test_feature.get('title', 'N/A')}")
-        print(f"Number of entities: {len(test_feature['entity_pos'])}")
-        print(f"Number of entity pairs: {len(test_feature['hts'])}")
+        output_lines.append(f"Title: {test_feature.get('title', 'N/A')}")
+        output_lines.append(f"Number of entities: {len(test_feature['entity_pos'])}")
+        output_lines.append(f"Number of entity pairs: {len(test_feature['hts'])}")
         
         # Show the original input text (without entity markers)
         input_tokens = tokenizer.convert_ids_to_tokens(test_feature['input_ids'])
@@ -146,9 +153,9 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         
         # Remove entity markers for the initial display
         original_text = input_text.replace(' * ', ' ').replace('* ', '').replace(' *', '')
-        print(f"\nOriginal input text:")
-        print(f"'{original_text}'")
-        print(f"Input length: {len(test_feature['input_ids'])} tokens")
+        output_lines.append(f"\nOriginal input text:")
+        output_lines.append(f"'{original_text}'")
+        output_lines.append(f"Input length: {len(test_feature['input_ids'])} tokens")
         
         # Load original test data to get correct entity names
         test_data_path = os.path.join(args.data_dir, "test.json")
@@ -171,7 +178,7 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         if not entity_names:
             entity_names = [f"Entity_{j}" for j in range(len(test_feature['entity_pos']))]
         
-        print(f"Entity names (from original data): {entity_names}")
+        output_lines.append(f"Entity names (from original data): {entity_names}")
         
         # Get model predictions
         inputs = {'input_ids': batch[0].to(args.device),
@@ -191,12 +198,12 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
         # Show the model-visible input (entities masked)
         masked_tokens = tokenizer.convert_ids_to_tokens(outputs['masked_input_ids'][0].cpu())
         masked_text = tokenizer.convert_tokens_to_string(masked_tokens)
-        print("Model-visible input (entities masked):")
-        print(f"'{masked_text}'")
+        output_lines.append("Model-visible input (entities masked):")
+        output_lines.append(f"'{masked_text}'")
         
         # Display predictions with ground truth - one pair at a time with context
-        print(f"\nEntity Pair Predictions:")
-        print("=" * 80)
+        output_lines.append(f"\nEntity Pair Predictions:")
+        output_lines.append("=" * 80)
         
         for pair_idx in range(len(pred)):
             h_idx, t_idx = test_feature['hts'][pair_idx]
@@ -222,33 +229,35 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=3)
                 head_name = entity_names[h_idx] if h_idx < len(entity_names) else f"Entity_{h_idx}"
                 tail_name = entity_names[t_idx] if t_idx < len(entity_names) else f"Entity_{t_idx}"
                 
-                print(f"\n--- PAIR {pair_idx+1} ---")
-                print(f"Head Entity: {head_name}")
-                print(f"Tail Entity: {tail_name}")
-                print(f"Ground Truth: {gt_class}")
-                print(f"Predicted: {predicted_class}")
-                print(f"Confidence: {confidence:.3f}")
-                print(f"Raw Logits: [{raw_logits[0]:.3f}, {raw_logits[1]:.3f}]")
+                output_lines.append(f"\n--- PAIR {pair_idx+1} ---")
+                output_lines.append(f"Head Entity: {head_name}")
+                output_lines.append(f"Tail Entity: {tail_name}")
+                output_lines.append(f"Ground Truth: {gt_class}")
+                output_lines.append(f"Predicted: {predicted_class}")
+                output_lines.append(f"Confidence: {confidence:.3f}")
+                output_lines.append(f"Raw Logits: [{raw_logits[0]:.3f}, {raw_logits[1]:.3f}]")
                 
                 # Show input text with only this pair highlighted
-                print(f"\nInput text with entity markers:")
+                output_lines.append(f"\nInput text with entity markers:")
                 highlighted_text = input_text
                 # Replace other entity markers with regular text for this specific pair
-                for i, entity_name in enumerate(entity_names):
-                    if i != h_idx and i != t_idx:
+                for j, entity_name in enumerate(entity_names):
+                    if j != h_idx and j != t_idx:
                         # Remove markers for other entities
                         highlighted_text = highlighted_text.replace(f"* {entity_name} *", entity_name)
                 
-                print(f"'{highlighted_text}'")
-                print("-" * 60)
+                output_lines.append(f"'{highlighted_text}'")
+                output_lines.append("-" * 60)
             else:
-                print(f"\n--- PAIR {pair_idx+1} ---")
-                print(f"Head Entity: Entity_{h_idx}")
-                print(f"Tail Entity: Entity_{t_idx}")
-                print(f"Ground Truth: {gt_class}")
-                print(f"Predicted: Unknown")
-                print(f"Confidence: N/A")
-                print("-" * 60)
+                output_lines.append(f"\n--- PAIR {pair_idx+1} ---")
+                output_lines.append(f"Head Entity: Entity_{h_idx}")
+                output_lines.append(f"Tail Entity: Entity_{t_idx}")
+                output_lines.append(f"Ground Truth: {gt_class}")
+                output_lines.append(f"Predicted: Unknown")
+                output_lines.append(f"Confidence: N/A")
+                output_lines.append("-" * 60)
+    
+    return "\n".join(output_lines)
 
 
 def evaluate(args, model, features, tag="dev"):
@@ -273,7 +282,7 @@ def evaluate(args, model, features, tag="dev"):
     preds = np.concatenate(preds, axis=0).astype(np.float32)
     ans = to_official(preds, features)
     if len(ans) > 0:
-        best_f1, _, best_f1_ign, _ = official_evaluate(ans, args.data_dir)
+        best_f1, _, best_f1_ign, _ = official_evaluate(ans, args.data_dir, split=tag)
     output = {
         tag + "_F1": best_f1 * 100,
         tag + "_F1_ign": best_f1_ign * 100,
@@ -436,24 +445,70 @@ def main():
 
     if args.load_path == "":  # Training
         train(args, model, train_features, dev_features, test_features, tokenizer)
-        # Display test examples after training
-        print("\n" + "="*80)
-        print("TRAINING COMPLETED - DISPLAYING TEST EXAMPLES")
-        print("="*80)
-        display_test_examples(args, model, test_features, tokenizer, num_examples=3)
     else:  # Testing
         model.load_state_dict(torch.load(args.load_path))
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
+        print("Dev evaluation results:")
         print(dev_output)
+        
+        # Test evaluation
+        print("\n" + "="*80)
+        print("TEST SET EVALUATION")
+        print("="*80)
+        test_score, test_output = evaluate(args, model, test_features, tag="test")
+        print("Test evaluation results:")
+        print(test_output)
+        
         pred = report(args, model, test_features)
-        with open("result.json", "w") as fh:
-            json.dump(pred, fh)
+        # Write comprehensive test results
+        test_results = {
+            "dev_metrics": dev_output,
+            "dev_score": dev_score,
+            "test_metrics": test_output,
+            "test_score": test_score,
+            "test_predictions": pred,
+            "display_results": {
+                "num_test_examples": len(test_features),
+                "num_predictions": len(pred),
+                "model_info": {
+                    "transformer_type": args.transformer_type,
+                    "model_name": args.model_name_or_path,
+                    "max_seq_length": args.max_seq_length,
+                    "num_labels": args.num_labels,
+                    "num_class": args.num_class,
+                    "loaded_from": args.load_path
+                }
+            }
+        }
+        
         # Display test examples after evaluation
         print("\n" + "="*80)
         print("EVALUATION COMPLETED - DISPLAYING TEST EXAMPLES")
         print("="*80)
-        display_test_examples(args, model, test_features, tokenizer, num_examples=3)
-
+        test_examples_output = display_test_examples(args, model, test_features, tokenizer, num_examples=3)
+        print(test_examples_output)
+        
+        # Save all results to a single text file
+        with open("results_test_set.txt", "w") as fh:
+            fh.write("TEST EVALUATION RESULTS\n")
+            fh.write("="*80 + "\n")
+            fh.write(f"Dev F1 Score: {dev_score:.4f}\n")
+            fh.write(f"Test F1 Score: {test_score:.4f}\n")
+            fh.write(f"Test Predictions: {len(pred)} relations predicted\n")
+            fh.write(f"Number of test examples: {len(test_features)}\n")
+            fh.write("\n")
+            fh.write("TEST PREDICTIONS (JSON format):\n")
+            fh.write("-" * 40 + "\n")
+            fh.write(json.dumps(test_results, indent=2))
+            fh.write("\n\n")
+            fh.write("TEST EXAMPLES:\n")
+            fh.write("-" * 40 + "\n")
+            fh.write(test_examples_output)
+        
+        print(f"\nTest results written to results_test_set.txt")
+        print(f"Dev F1 Score: {dev_score:.4f}")
+        print(f"Test F1 Score: {test_score:.4f}")
+        print(f"Test Predictions: {len(pred)} relations predicted")
 
 if __name__ == "__main__":
     main()
