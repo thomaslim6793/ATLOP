@@ -476,6 +476,7 @@ def main():
         print("Starting fine-tuning...")
         train(args, model, train_features, dev_features, test_features, tokenizer)
     elif args.load_checkpoint == "":  # Training from scratch
+        print("Training from scratch...")
         train(args, model, train_features, dev_features, test_features, tokenizer)
     else:  # Testing/Evaluation only
         model.load_state_dict(torch.load(args.load_checkpoint))
