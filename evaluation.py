@@ -3,11 +3,8 @@ import os.path
 import json
 import numpy as np
 
-rel2id = json.load(open('meta/rel2id.json', 'r'))
-id2rel = {value: key for key, value in rel2id.items()}
 
-
-def to_official(preds, features):
+def to_official(preds, features, id2rel):
     h_idx, t_idx, title = [], [], []
 
     for f in features:

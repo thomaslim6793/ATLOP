@@ -265,6 +265,9 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=1)
 
 
 def evaluate(args, model, features, tag="dev"):
+    # Load relation mapping
+    rel2id = json.load(open(args.data_dir + '/meta/rel2id.json', 'r'))
+    id2rel = {v: k for k, v in rel2id.items()}
 
     dataloader = DataLoader(features, batch_size=args.test_batch_size, shuffle=False, collate_fn=collate_fn, drop_last=False)
     preds = []
@@ -284,7 +287,7 @@ def evaluate(args, model, features, tag="dev"):
             preds.append(pred)
 
     preds = np.concatenate(preds, axis=0).astype(np.float32)
-    ans = to_official(preds, features)
+    ans = to_official(preds, features, id2rel)
     if len(ans) > 0:
         best_f1, _, best_f1_ign, _ = official_evaluate(ans, args.data_dir, split=tag)
     output = {
@@ -295,6 +298,9 @@ def evaluate(args, model, features, tag="dev"):
 
 
 def report(args, model, features):
+    # Load relation mapping
+    rel2id = json.load(open(args.data_dir + '/meta/rel2id.json', 'r'))
+    id2rel = {v: k for k, v in rel2id.items()}
 
     dataloader = DataLoader(features, batch_size=args.test_batch_size, shuffle=False, collate_fn=collate_fn, drop_last=False)
     preds = []
@@ -314,7 +320,7 @@ def report(args, model, features):
             preds.append(pred)
 
     preds = np.concatenate(preds, axis=0).astype(np.float32)
-    preds = to_official(preds, features)
+    preds = to_official(preds, features, id2rel)
     return preds
 
 
