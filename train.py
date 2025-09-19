@@ -428,9 +428,13 @@ def main():
         dev_file = os.path.join(args.data_dir, args.dev_file)
         test_file = os.path.join(args.data_dir, args.test_file)
         
-        train_features = read(train_file, tokenizer, max_seq_length=args.max_seq_length)
-        dev_features = read(dev_file, tokenizer, max_seq_length=args.max_seq_length)
-        test_features = read(test_file, tokenizer, max_seq_length=args.max_seq_length)
+        
+        with open(os.path.join(args.data_dir, 'meta/rel2id.json'), 'r') as f:
+            rel2id_file = json.load(f)
+            
+        train_features = read(rel2id_file, train_file, tokenizer, max_seq_length=args.max_seq_length)
+        dev_features = read(rel2id_file, dev_file, tokenizer, max_seq_length=args.max_seq_length)
+        test_features = read(rel2id_file, test_file, tokenizer, max_seq_length=args.max_seq_length)
         
         if args.save_cache:
             print("Saving preprocessed datasets to cache...")

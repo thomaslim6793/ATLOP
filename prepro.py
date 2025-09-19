@@ -1,7 +1,6 @@
 from tqdm import tqdm
 import ujson as json
 
-docred_rel2id = json.load(open('meta/rel2id.json', 'r'))
 cdr_rel2id = {'1:NR:2': 0, '1:CID:2': 1}
 gda_rel2id = {'1:NR:2': 0, '1:GDA:2': 1}
 
@@ -14,7 +13,7 @@ def chunks(l, n):
     return res
 
 
-def read_docred(file_in, tokenizer, max_seq_length=1024):
+def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
     i_line = 0
     pos_samples = 0
     neg_samples = 0
@@ -53,7 +52,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         if "labels" in sample:
             for label in sample['labels']:
                 evidence = label['evidence']
-                r = int(docred_rel2id[label['r']])
+                r = int(rel2id_file[label['r']])
                 if (label['h'], label['t']) not in train_triple:
                     train_triple[(label['h'], label['t'])] = [
                         {'relation': r, 'evidence': evidence}]
@@ -71,7 +70,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
 
         relations, hts = [], []
         for h, t in train_triple.keys():
-            relation = [0] * len(docred_rel2id)
+            relation = [0] * len(rel2id_file)
             for mention in train_triple[h, t]:
                 relation[mention["relation"]] = 1
                 evidence = mention["evidence"]
@@ -82,7 +81,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         for h in range(len(entities)):
             for t in range(len(entities)):
                 if h != t and [h, t] not in hts:
-                    relation = [1] + [0] * (len(docred_rel2id) - 1)
+                    relation = [1] + [0] * (len(rel2id_file) - 1)
                     relations.append(relation)
                     hts.append([h, t])
                     neg_samples += 1
