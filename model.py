@@ -29,21 +29,26 @@ class DocREModel(nn.Module):
             start_tokens = [config.cls_token_id]; end_tokens = [config.sep_token_id, config.sep_token_id]
         offset = 1 if config.transformer_type in ["bert", "roberta"] else 0
 
-        mask_id = getattr(self.model.config, "mask_token_id", None)
-        if mask_id is None:
-            mask_id = getattr(config, "mask_token_id", None)
-        if mask_id is None:
-            raise ValueError("mask_token_id not set on config/model.config")
+        # Conditionally apply entity masking based on config
+        if getattr(config, "entity_masking", False):
+            mask_id = getattr(self.model.config, "mask_token_id", None)
+            if mask_id is None:
+                mask_id = getattr(config, "mask_token_id", None)
+            if mask_id is None:
+                raise ValueError("mask_token_id not set on config/model.config")
 
-        masked_input_ids = input_ids.clone()  # [batch, seq_len]
-        batch_size, seq_len = masked_input_ids.size()
-        for b in range(batch_size):
-            for mentions in entity_pos[b]:
-                for start, end in mentions:
-                    s = min(start + offset, seq_len - 1)
-                    e = min(end - 1 + offset, seq_len - 1)
-                    if s <= e:
-                        masked_input_ids[b, s:e+1] = mask_id
+            masked_input_ids = input_ids.clone()  # [batch, seq_len]
+            batch_size, seq_len = masked_input_ids.size()
+            for b in range(batch_size):
+                for mentions in entity_pos[b]:
+                    for start, end in mentions:
+                        s = min(start + offset, seq_len - 1)
+                        e = min(end - 1 + offset, seq_len - 1)
+                        if s <= e:
+                            masked_input_ids[b, s:e+1] = mask_id
+        else:
+            # No masking - use original input
+            masked_input_ids = input_ids
 
         sequence_output, attention = process_long_input(self.model, masked_input_ids, attention_mask, start_tokens, end_tokens)
         return sequence_output, attention, masked_input_ids
