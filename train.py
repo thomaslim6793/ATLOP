@@ -86,7 +86,7 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                     print(display_test_examples(args, model, test_features, tokenizer, num_examples=5))
                     
                     if dev_score > best_score:
-                        # best_score = dev_score
+                        best_score = dev_score
                         # pred = report(args, model, test_features)
                         # with open("result.json", "w") as fh:
                         #     json.dump(pred, fh)
