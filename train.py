@@ -80,11 +80,12 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                     print(dev_output)
                     
                     # Display test examples to monitor progress
-                    print(f"\n{'='*60}")
-                    print(f"TRAINING PROGRESS - TEST EXAMPLES (Step {num_steps})")
-                    print(f"{'='*60}")
-                    print(display_test_examples(args, model, test_features, tokenizer, num_examples=5))
-                    
+                    if args.display_test_examples:
+                        print(f"\n{'='*60}")
+                        print(f"TRAINING PROGRESS - TEST EXAMPLES (Step {num_steps})")
+                        print(f"{'='*60}")
+                        print(display_test_examples(args, model, test_features, tokenizer, num_examples=1))
+                        
                     if dev_score > best_score:
                         best_score = dev_score
                         # pred = report(args, model, test_features)
@@ -107,12 +108,13 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                 print(f"  {key}: {value:.4f}")
             print(f"  Best F1_ign so far: {best_score:.4f}")
             
-            # Display test examples
-            print(f"\n{'='*80}")
-            print(f"END OF EPOCH {epoch+1} - DISPLAYING TEST EXAMPLES")
-            print(f"{'='*80}")
-            print(display_test_examples(args, model, test_features, tokenizer, num_examples=5))
-            
+            if args.display_test_examples:
+                # Display test examples
+                print(f"\n{'='*80}")
+                print(f"END OF EPOCH {epoch+1} - DISPLAYING TEST EXAMPLES")
+                print(f"{'='*80}")
+                print(display_test_examples(args, model, test_features, tokenizer, num_examples=1))
+                
             # Update progress bar with current epoch metrics
             epoch_pbar.set_postfix({
                 "dev_f1": f"{epoch_dev_output['dev_F1']:.2f}",
@@ -386,6 +388,8 @@ def main():
                         help="Enable entity masking during training and inference.")
     parser.add_argument("--pretrain_on_docred", action="store_true",
                         help="Pretrain the model on DocRED.")
+    parser.add_argument("--display_test_examples", action="store_true",
+                        help="Display test examples during training and evaluation.")
     args = parser.parse_args()
     wandb.init(project="DocRED")
 
@@ -515,11 +519,12 @@ def main():
         }
         
         # Display test examples after evaluation
-        print("\n" + "="*80)
-        print("EVALUATION COMPLETED - DISPLAYING TEST EXAMPLES")
-        print("="*80)
-        test_examples_output = display_test_examples(args, model, test_features, tokenizer, num_examples=3)
-        print(test_examples_output)
+        if args.display_test_examples:
+            print("\n" + "="*80)
+            print("EVALUATION COMPLETED - DISPLAYING TEST EXAMPLES")
+            print("="*80)
+            test_examples_output = display_test_examples(args, model, test_features, tokenizer, num_examples=1)
+            print(test_examples_output)
         
         # Save all results to a single text file
         with open("results_test_set.txt", "w") as fh:
@@ -533,10 +538,11 @@ def main():
             fh.write("TEST PREDICTIONS (JSON format):\n")
             fh.write("-" * 40 + "\n")
             fh.write(json.dumps(test_results, indent=2))
-            fh.write("\n\n")
-            fh.write("TEST EXAMPLES:\n")
-            fh.write("-" * 40 + "\n")
-            fh.write(test_examples_output)
+            if args.display_test_examples:
+                fh.write("\n\n")
+                fh.write("TEST EXAMPLES:\n")
+                fh.write("-" * 40 + "\n")
+                fh.write(test_examples_output)
         
         print(f"\nTest results written to results_test_set.txt")
         print(f"Dev F1 Score: {dev_score:.4f}")
