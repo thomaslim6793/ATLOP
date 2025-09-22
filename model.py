@@ -31,7 +31,6 @@ class DocREModel(nn.Module):
 
         # Conditionally apply entity masking based on config
         if getattr(config, "entity_masking", False):
-            print("Applying entity masking")
             mask_id = getattr(self.model.config, "mask_token_id", None)
             if mask_id is None:
                 mask_id = getattr(config, "mask_token_id", None)

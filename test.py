@@ -255,6 +255,7 @@ def main():
     config.cls_token_id = tokenizer.cls_token_id
     config.sep_token_id = tokenizer.sep_token_id
     config.transformer_type = args.transformer_type
+    config.mask_token_id = tokenizer.mask_token_id
 
     # Load the base model
     model = AutoModel.from_pretrained(
