@@ -121,7 +121,9 @@ def display_test_examples(args, model, test_features, tokenizer, num_examples=1)
                 end_pos = entity_mentions[0][1]
                 if start_pos < len(input_tokens) and end_pos <= len(input_tokens):
                     entity_tokens = input_tokens[start_pos:end_pos]
-                    entity_name = tokenizer.convert_tokens_to_string(entity_tokens)
+                    # Remove asterisks from entity name display
+                    entity_tokens_clean = [token for token in entity_tokens if token != "*"]
+                    entity_name = tokenizer.convert_tokens_to_string(entity_tokens_clean)
                     entity_names.append(entity_name)
                 else:
                     entity_names.append("UNKNOWN")

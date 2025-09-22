@@ -45,9 +45,11 @@ class DocREModel(nn.Module):
                         s = min(start + offset, seq_len - 1)
                         e = min(end - 1 + offset, seq_len - 1)
                         if s <= e:
-                            # Only mask entity content, preserve the * delimiters
-                            if e > s + 1:  # Make sure there's content between the asterisks
-                                masked_input_ids[b, s+1:e-1] = mask_id
+                            # Mask entity content while preserving the * delimiters
+                            # The entity positions include the asterisks, so we need to mask
+                            # from start+1 (after first *) to end-1 (before last *)
+                            if e > s + 2:  # Make sure there's content between the asterisks (at least 3 tokens: * content *)
+                                masked_input_ids[b, s+1:e] = mask_id
         else:
             # No masking - use original input
             masked_input_ids = input_ids
