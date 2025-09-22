@@ -42,5 +42,4 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --load_checkpoint ./best_docred_model.pth \
 --fine_tune \
 --save_cache \
---use_cache
-
+--use_cache \

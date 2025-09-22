@@ -527,7 +527,9 @@ def main():
             print(test_examples_output)
         
         # Save all results to a single text file
-        with open("results_test_set.txt", "w") as fh:
+        suffix = args.load_checkpoint.split("/")[-1].split(".")[0]
+        file_name = f"results_test_set_{suffix}.txt"
+        with open(file_name, "w") as fh:
             fh.write("TEST EVALUATION RESULTS\n")
             fh.write("="*80 + "\n")
             fh.write(f"Dev F1 Score: {dev_score:.4f}\n")
