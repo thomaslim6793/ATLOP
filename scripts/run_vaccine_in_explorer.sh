@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=atlop_vaccine_pathogen_train
+#SBATCH --job-name=atlop_vaccine_pathogen_finetune_docred_without_entity_masking
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:v100-pcie:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=8:00:00
-#SBATCH --output=atlop_vaccine_pathogen_train_%j.out
-#SBATCH --error=atlop_vaccine_pathogen_train_%j.err
+#SBATCH --output=atlop_vaccine_pathogen_finetune_docred_without_entity_masking_%j.out
+#SBATCH --error=atlop_vaccine_pathogen_finetune_docred_without_entity_masking_%j.err
 
 # Load modules
 module load cuda/12.3.0
@@ -27,7 +27,7 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --train_file train_annotated.json \
 --dev_file dev.json \
 --test_file test.json \
---train_batch_size 8 \
+--train_batch_size 16 \
 --test_batch_size 16 \
 --gradient_accumulation_steps 1 \
 --num_labels 2 \
@@ -38,8 +38,8 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --seed 66 \
 --num_class 2 \
 --device cuda \
---save_checkpoint ./best_vaccine_model.pth \
---load_checkpoint ./best_docred_model.pth \
+--save_checkpoint ./best_vaccine_model_finetune_docred_without_entity_masking.pth \
+--load_checkpoint ./best_docred_model_without_entity_masking.pth \
 --fine_tune \
 --save_cache \
 --use_cache \
