@@ -267,21 +267,29 @@ def main():
     # Load relation mapping
     rel2id = json.load(open(args.data_dir + '/meta/rel2id.json', 'r'))
 
-    # Load datasets
+    # Create cache directory if it doesn't exist
     if args.use_cache:
-        cache_file = os.path.join(args.cache_dir, "cached_datasets.pkl")
-        if os.path.exists(cache_file):
-            print("Loading cached preprocessed datasets...")
-            with open(cache_file, 'rb') as f:
-                cached_data = pickle.load(f)
-            train_features = cached_data.get('train_features', None)
-            dev_features = cached_data.get('dev_features', None)
-            test_features = cached_data.get('test_features', None)
-            print("Cached datasets loaded successfully!")
-        else:
-            print("Cache file not found. Please run training first to create cache.")
-            return
+        os.makedirs(args.cache_dir, exist_ok=True)
+
+    # Generate cache filenames based on dataset and model parameters
+    dataset_name = os.path.basename(args.data_dir)  # e.g., "docred" or "vaccine_pathogen_docred"
+    cache_suffix = f"_{dataset_name}_{args.transformer_type}_{args.max_seq_length}_{args.data_dir.split('/')[-1]}"
+    train_cache_file = os.path.join(args.cache_dir, f"train_features{cache_suffix}.pkl")
+    dev_cache_file = os.path.join(args.cache_dir, f"dev_features{cache_suffix}.pkl")
+    test_cache_file = os.path.join(args.cache_dir, f"test_features{cache_suffix}.pkl")
+
+    # Load or process datasets
+    if args.use_cache and os.path.exists(train_cache_file) and os.path.exists(dev_cache_file) and os.path.exists(test_cache_file):
+        print("Loading cached preprocessed datasets...")
+        with open(train_cache_file, 'rb') as f:
+            train_features = pickle.load(f)
+        with open(dev_cache_file, 'rb') as f:
+            dev_features = pickle.load(f)
+        with open(test_cache_file, 'rb') as f:
+            test_features = pickle.load(f)
+        print("Cached datasets loaded successfully!")
     else:
+        print("Loading datasets from scratch...")
         train_features = read_docred(rel2id, os.path.join(args.data_dir, "train_annotated.json"), tokenizer, max_seq_length=args.max_seq_length)
         dev_features = read_docred(rel2id, os.path.join(args.data_dir, args.dev_file), tokenizer, max_seq_length=args.max_seq_length)
         test_features = read_docred(rel2id, os.path.join(args.data_dir, args.test_file), tokenizer, max_seq_length=args.max_seq_length)
