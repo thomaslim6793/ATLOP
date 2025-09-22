@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=atlop_docred_pretrain
+#SBATCH --job-name=atlop_docred_pretrain_with_entity_masking
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:v100-pcie:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=8:00:00
-#SBATCH --output=atlop_docred_pretrain_%j.out
-#SBATCH --error=atlop_docred_pretrain_%j.err
+#SBATCH --output=atlop_docred_pretrain_with_entity_masking_%j.out
+#SBATCH --error=atlop_docred_pretrain_with_entity_masking_%j.err
 
 # Load modules
 module load cuda/12.3.0
@@ -27,17 +27,18 @@ python train.py --data_dir ./dataset/docred \
 --train_file train_annotated.json \
 --dev_file dev.json \
 --test_file test.json \
---train_batch_size 8 \
+--train_batch_size 16 \
 --test_batch_size 16 \
 --gradient_accumulation_steps 1 \
 --num_labels 97 \
 --learning_rate 5e-5 \
 --max_grad_norm 1.0 \
 --warmup_ratio 0.06 \
---num_train_epochs 10.0 \
+--num_train_epochs 20.0 \
 --seed 66 \
 --num_class 97 \
 --device cuda \
---save_checkpoint ./best_docred_model.pth \
+--save_checkpoint ./best_docred_model_with_entity_masking.pth \
 --save_cache \
---use_cache
+--use_cache \
+--entity_masking
