@@ -476,7 +476,26 @@ def main():
         if args.load_checkpoint == "":
             raise ValueError("--fine_tune requires --load_checkpoint to be specified")
         print(f"Loading pretrained model from {args.load_checkpoint}")
-        model.load_state_dict(torch.load(args.load_checkpoint))
+        
+        # Load checkpoint and filter out incompatible layers
+        checkpoint = torch.load(args.load_checkpoint)
+        model_dict = model.state_dict()
+        
+        # Filter out layers that have size mismatches (like classification head)
+        filtered_checkpoint = {}
+        for k, v in checkpoint.items():
+            if k in model_dict:
+                if model_dict[k].shape == v.shape:
+                    filtered_checkpoint[k] = v
+                else:
+                    print(f"Skipping layer {k} due to size mismatch: {model_dict[k].shape} vs {v.shape}")
+            else:
+                print(f"Skipping layer {k} (not in current model)")
+        
+        # Load only compatible weights
+        model_dict.update(filtered_checkpoint)
+        model.load_state_dict(model_dict)
+        print(f"Loaded {len(filtered_checkpoint)} compatible layers from checkpoint")
         print("Starting fine-tuning...")
         train(args, model, train_features, dev_features, test_features, tokenizer)
     elif args.load_checkpoint == "":  # Training from scratch
