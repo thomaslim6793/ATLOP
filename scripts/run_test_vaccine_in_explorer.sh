@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=atlop_test_vaccine_finetune_docred_without_entity_masking
+#SBATCH --job-name=atlop_test_vaccine_finetune_docred_with_entity_masking
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:v100-pcie:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=8:00:00
-#SBATCH --output=atlop_test_vaccine_finetune_docred_without_entity_masking_%j.out
-#SBATCH --error=atlop_test_vaccine_finetune_docred_without_entity_masking_%j.err
+#SBATCH --output=atlop_test_vaccine_finetune_docred_with_entity_masking_%j.out
+#SBATCH --error=atlop_test_vaccine_finetune_docred_with_entity_masking_%j.err
 
 # Load modules
 module load cuda/12.3.0
@@ -31,6 +31,7 @@ python test.py --data_dir ./dataset/vaccine_pathogen_docred \
 --seed 66 \
 --num_class 2 \
 --device cuda \
---load_checkpoint ./best_vaccine_model_finetune_docred_without_entity_masking.pth \
+--load_checkpoint ./best_vaccine_model_finetune_docred_with_entity_masking.pth \
 --use_cache \
---display_test_examples 
+--display_test_examples \
+--entity_masking
