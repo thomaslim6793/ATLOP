@@ -326,6 +326,61 @@ def report(args, model, features):
     return preds
 
 
+def create_rel2id_if_missing(data_dir, train_file, dev_file, test_file):
+    """
+    Create meta/rel2id.json if it doesn't exist by extracting relations from all splits.
+    """
+    rel2id_path = os.path.join(data_dir, 'meta', 'rel2id.json')
+    
+    # Check if rel2id.json already exists
+    if os.path.exists(rel2id_path):
+        return
+    
+    print(f"meta/rel2id.json not found. Creating it from dataset splits...")
+    
+    # Create meta directory if it doesn't exist
+    os.makedirs(os.path.join(data_dir, 'meta'), exist_ok=True)
+    
+    # Extract relations from all splits
+    all_relations = set()
+    
+    for file_path, split_name in [(train_file, "train"), (dev_file, "dev"), (test_file, "test")]:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            relations = set()
+            for doc in data:
+                if 'labels' in doc:
+                    for label in doc['labels']:
+                        if 'r' in label:
+                            relations.add(label['r'])
+            
+            all_relations.update(relations)
+            print(f"  {split_name}: {len(relations)} unique relations found")
+        
+        except FileNotFoundError:
+            print(f"  Warning: {file_path} not found, skipping...")
+        except Exception as e:
+            print(f"  Error reading {file_path}: {e}")
+    
+    # Create rel2id mapping with 'N/A' as class 0
+    sorted_relations = sorted(list(all_relations))
+    rel2id = {'N/A': 0}
+    
+    for i, rel in enumerate(sorted_relations):
+        if rel != 'N/A':  # Don't duplicate N/A
+            rel2id[rel] = i + 1
+    
+    # Save to meta/rel2id.json
+    with open(rel2id_path, 'w', encoding='utf-8') as f:
+        json.dump(rel2id, f, indent=2, ensure_ascii=False)
+    
+    print(f"\nCreated meta/rel2id.json with {len(rel2id)} relations")
+    print(f"  Total unique relations: {len(all_relations)}")
+    print(f"  Saved to: {rel2id_path}\n")
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -422,6 +477,14 @@ def main():
     dev_cache_file = os.path.join(args.cache_dir, f"dev_features{cache_suffix}.pkl")
     test_cache_file = os.path.join(args.cache_dir, f"test_features{cache_suffix}.pkl")
 
+    # Define file paths
+    train_file = os.path.join(args.data_dir, args.train_file)
+    dev_file = os.path.join(args.data_dir, args.dev_file)
+    test_file = os.path.join(args.data_dir, args.test_file)
+    
+    # Create meta/rel2id.json if it doesn't exist
+    create_rel2id_if_missing(args.data_dir, train_file, dev_file, test_file)
+    
     # Load or process datasets
     if args.use_cache and os.path.exists(train_cache_file) and os.path.exists(dev_cache_file) and os.path.exists(test_cache_file):
         print("Loading cached preprocessed datasets...")
@@ -434,10 +497,6 @@ def main():
         print("Cached datasets loaded successfully!")
     else:
         print("Processing datasets (this may take a while)...")
-        train_file = os.path.join(args.data_dir, args.train_file)
-        dev_file = os.path.join(args.data_dir, args.dev_file)
-        test_file = os.path.join(args.data_dir, args.test_file)
-        
         
         with open(os.path.join(args.data_dir, 'meta/rel2id.json'), 'r') as f:
             rel2id_file = json.load(f)
