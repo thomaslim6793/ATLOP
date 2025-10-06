@@ -456,28 +456,7 @@ def main():
         args.n_gpu = 0
     args.device = device
 
-    config = AutoConfig.from_pretrained(
-        args.config_name if args.config_name else args.base_model_name_or_path,
-        num_labels=args.num_class,
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.tokenizer_name if args.tokenizer_name else args.base_model_name_or_path,
-    )
-    
-    read = read_docred
-
-    # Create cache directory if it doesn't exist
-    if args.save_cache or args.use_cache:
-        os.makedirs(args.cache_dir, exist_ok=True)
-
-    # Generate cache filenames based on dataset and model parameters
-    dataset_name = os.path.basename(args.data_dir)  # e.g., "docred" or "vaccine_pathogen_docred"
-    cache_suffix = f"_{dataset_name}_{args.transformer_type}_{args.max_seq_length}_{args.data_dir.split('/')[-1]}"
-    train_cache_file = os.path.join(args.cache_dir, f"train_features{cache_suffix}.pkl")
-    dev_cache_file = os.path.join(args.cache_dir, f"dev_features{cache_suffix}.pkl")
-    test_cache_file = os.path.join(args.cache_dir, f"test_features{cache_suffix}.pkl")
-
-    # Define file paths
+    # Define file paths early (needed for rel2id creation)
     train_file = os.path.join(args.data_dir, args.train_file)
     dev_file = os.path.join(args.data_dir, args.dev_file)
     test_file = os.path.join(args.data_dir, args.test_file)
@@ -485,7 +464,7 @@ def main():
     # Create meta/rel2id.json if it doesn't exist
     create_rel2id_if_missing(args.data_dir, train_file, dev_file, test_file)
     
-    # Load rel2id and auto-infer num_class if not explicitly set or if there's a mismatch
+    # Load rel2id and auto-infer num_class BEFORE creating config
     rel2id_path = os.path.join(args.data_dir, 'meta', 'rel2id.json')
     with open(rel2id_path, 'r') as f:
         rel2id_file = json.load(f)
@@ -508,6 +487,28 @@ def main():
         print(f"WARNING: --num_labels={args.num_labels} but rel2id.json has {actual_num_class} classes")
         print(f"Auto-adjusting num_labels to {actual_num_class}")
         args.num_labels = actual_num_class
+
+    # Now create config with correct num_class
+    config = AutoConfig.from_pretrained(
+        args.config_name if args.config_name else args.base_model_name_or_path,
+        num_labels=args.num_class,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.tokenizer_name if args.tokenizer_name else args.base_model_name_or_path,
+    )
+    
+    read = read_docred
+
+    # Create cache directory if it doesn't exist
+    if args.save_cache or args.use_cache:
+        os.makedirs(args.cache_dir, exist_ok=True)
+
+    # Generate cache filenames based on dataset and model parameters
+    dataset_name = os.path.basename(args.data_dir)  # e.g., "docred" or "vaccine_pathogen_docred"
+    cache_suffix = f"_{dataset_name}_{args.transformer_type}_{args.max_seq_length}_{args.data_dir.split('/')[-1]}"
+    train_cache_file = os.path.join(args.cache_dir, f"train_features{cache_suffix}.pkl")
+    dev_cache_file = os.path.join(args.cache_dir, f"dev_features{cache_suffix}.pkl")
+    test_cache_file = os.path.join(args.cache_dir, f"test_features{cache_suffix}.pkl")
     
     # Load or process datasets
     if args.use_cache and os.path.exists(train_cache_file) and os.path.exists(dev_cache_file) and os.path.exists(test_cache_file):
