@@ -68,6 +68,10 @@ def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
                 end = sent_map[m["sent_id"]][m["pos"][1]]
                 entity_pos[-1].append((start, end,))
 
+        # Skip documents with fewer than 2 entities (no valid entity pairs)
+        if len(entities) < 2:
+            continue
+        
         relations, hts = [], []
         for h, t in train_triple.keys():
             relation = [0] * len(rel2id_file)
