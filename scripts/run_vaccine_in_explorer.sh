@@ -30,17 +30,13 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --train_batch_size 16 \
 --test_batch_size 16 \
 --gradient_accumulation_steps 1 \
---num_labels 2 \
 --learning_rate 2e-5 \
 --max_grad_norm 1.0 \
 --warmup_ratio 0.06 \
 --num_train_epochs 10.0 \
 --seed 66 \
---num_class 2 \
 --device cuda \
---save_checkpoint ./best_vaccine_model_finetune_docred_with_entity_masking.pth \
---load_checkpoint ./best_docred_model_with_entity_masking.pth \
---fine_tune \
+--save_checkpoint ./best_vaccine_model_with_entity_masking.pth \
 --save_cache \
 --use_cache \
 --entity_masking

@@ -413,8 +413,8 @@ def main():
                         help="Batch size for testing.")
     parser.add_argument("--gradient_accumulation_steps", default=1, type=int,
                         help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument("--num_labels", default=97, type=int,
-                        help="Max number of labels in prediction.")
+    parser.add_argument("--num_labels", default=None, type=int,
+                        help="Max number of labels in prediction (optional, auto-inferred from rel2id.json if not specified).")
     parser.add_argument("--learning_rate", default=5e-5, type=float,
                         help="The initial learning rate for Adam.")
     parser.add_argument("--adam_epsilon", default=1e-6, type=float,
@@ -429,8 +429,8 @@ def main():
                         help="Number of training steps between evaluations. Set to -1 to disable evaluation during training.")
     parser.add_argument("--seed", type=int, default=66,
                         help="random seed for initialization")
-    parser.add_argument("--num_class", type=int, default=97,
-                        help="Number of relation types in dataset.")
+    parser.add_argument("--num_class", type=int, default=None,
+                        help="Number of relation types in dataset (optional, auto-inferred from rel2id.json if not specified).")
     parser.add_argument("--device", type=str, default="cuda",
                         help="Device to use for training (cuda or cpu).")
     parser.add_argument("--cache_dir", type=str, default="./cache",
@@ -485,6 +485,30 @@ def main():
     # Create meta/rel2id.json if it doesn't exist
     create_rel2id_if_missing(args.data_dir, train_file, dev_file, test_file)
     
+    # Load rel2id and auto-infer num_class if not explicitly set or if there's a mismatch
+    rel2id_path = os.path.join(args.data_dir, 'meta', 'rel2id.json')
+    with open(rel2id_path, 'r') as f:
+        rel2id_file = json.load(f)
+    
+    actual_num_class = len(rel2id_file)
+    
+    # Auto-infer num_class and num_labels if not specified
+    if args.num_class is None:
+        print(f"Auto-inferring num_class from rel2id.json: {actual_num_class}")
+        args.num_class = actual_num_class
+    elif args.num_class != actual_num_class:
+        print(f"WARNING: --num_class={args.num_class} but rel2id.json has {actual_num_class} classes")
+        print(f"Auto-adjusting num_class to {actual_num_class}")
+        args.num_class = actual_num_class
+    
+    if args.num_labels is None:
+        print(f"Auto-inferring num_labels from rel2id.json: {actual_num_class}")
+        args.num_labels = actual_num_class
+    elif args.num_labels != actual_num_class:
+        print(f"WARNING: --num_labels={args.num_labels} but rel2id.json has {actual_num_class} classes")
+        print(f"Auto-adjusting num_labels to {actual_num_class}")
+        args.num_labels = actual_num_class
+    
     # Load or process datasets
     if args.use_cache and os.path.exists(train_cache_file) and os.path.exists(dev_cache_file) and os.path.exists(test_cache_file):
         print("Loading cached preprocessed datasets...")
@@ -497,10 +521,7 @@ def main():
         print("Cached datasets loaded successfully!")
     else:
         print("Processing datasets (this may take a while)...")
-        
-        with open(os.path.join(args.data_dir, 'meta/rel2id.json'), 'r') as f:
-            rel2id_file = json.load(f)
-            
+        # rel2id_file already loaded above
         train_features = read(rel2id_file, train_file, tokenizer, max_seq_length=args.max_seq_length)
         dev_features = read(rel2id_file, dev_file, tokenizer, max_seq_length=args.max_seq_length)
         test_features = read(rel2id_file, test_file, tokenizer, max_seq_length=args.max_seq_length)
