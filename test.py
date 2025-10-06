@@ -76,7 +76,7 @@ def report(args, model, features):
     return preds
 
 
-def display_positive_predictions(preds, features, id2rel, num_examples=20):
+def display_positive_predictions(preds, features, id2rel, data_path, num_examples=20):
     """Display examples where ground truth has positive relations (not N/A)"""
     print("\n" + "="*80)
     print("POSITIVE PREDICTION EXAMPLES (Ground Truth = Non-N/A)")
@@ -85,6 +85,16 @@ def display_positive_predictions(preds, features, id2rel, num_examples=20):
     if len(preds) == 0:
         print("No positive predictions found!")
         return
+    
+    # Load original data to get entity names
+    import json
+    try:
+        with open(data_path, 'r') as f:
+            original_data = json.load(f)
+        title_to_doc = {doc['title']: doc for doc in original_data}
+    except:
+        print(f"Warning: Could not load original data from {data_path}")
+        title_to_doc = {}
     
     # Build a mapping from (title, h_idx, t_idx) to predicted relations
     pred_map = {}
@@ -113,7 +123,17 @@ def display_positive_predictions(preds, features, id2rel, num_examples=20):
                     positive_gt_relations.append(id2rel[rel_idx])
             
             if positive_gt_relations:
-                # Get entity names if available
+                # Get entity names from original data
+                h_name = "Entity_" + str(h_idx)
+                t_name = "Entity_" + str(t_idx)
+                
+                if title in title_to_doc and 'vertexSet' in title_to_doc[title]:
+                    vertexSet = title_to_doc[title]['vertexSet']
+                    if h_idx < len(vertexSet) and vertexSet[h_idx]:
+                        h_name = vertexSet[h_idx][0]['name']
+                    if t_idx < len(vertexSet) and vertexSet[t_idx]:
+                        t_name = vertexSet[t_idx][0]['name']
+                
                 key = (title, h_idx, t_idx)
                 predicted_relations = pred_map.get(key, [])
                 
@@ -121,6 +141,8 @@ def display_positive_predictions(preds, features, id2rel, num_examples=20):
                     'title': title,
                     'h_idx': h_idx,
                     't_idx': t_idx,
+                    'h_name': h_name,
+                    't_name': t_name,
                     'ground_truth': positive_gt_relations,
                     'predicted': predicted_relations if predicted_relations else ['N/A'],
                     'correct': any(p in positive_gt_relations for p in predicted_relations)
@@ -136,8 +158,9 @@ def display_positive_predictions(preds, features, id2rel, num_examples=20):
     for i, example in enumerate(positive_examples[:num_examples]):
         status = "✓ CORRECT" if example['correct'] else "✗ MISSED"
         print(f"--- Example {i+1} {status} ---")
-        print(f"Document: {example['title']}")
-        print(f"Entity pair: ({example['h_idx']}, {example['t_idx']})")
+        print(f"Document: {example['title'][:80]}...")
+        print(f"Head Entity: {example['h_name']}")
+        print(f"Tail Entity: {example['t_name']}")
         print(f"Ground Truth: {', '.join(example['ground_truth'])}")
         print(f"Predicted: {', '.join(example['predicted'])}")
         print()
@@ -433,7 +456,8 @@ def main():
     # Display positive predictions
     rel2id = json.load(open(args.data_dir + '/meta/rel2id.json', 'r'))
     id2rel = {v: k for k, v in rel2id.items()}
-    display_positive_predictions(pred, test_features, id2rel, num_examples=30)
+    test_file_path = os.path.join(args.data_dir, args.test_file)
+    display_positive_predictions(pred, test_features, id2rel, test_file_path, num_examples=30)
     
     # Write comprehensive test results
     test_results = {
