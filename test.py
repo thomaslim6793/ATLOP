@@ -217,12 +217,12 @@ def main():
 
     parser.add_argument("--test_batch_size", default=16, type=int,
                         help="Batch size for testing.")
-    parser.add_argument("--num_labels", default=97, type=int,
-                        help="Max number of labels in prediction.")
+    parser.add_argument("--num_labels", default=None, type=int,
+                        help="Max number of labels in prediction (optional, auto-inferred from rel2id.json if not specified).")
     parser.add_argument("--seed", type=int, default=66,
                         help="random seed for initialization")
-    parser.add_argument("--num_class", type=int, default=97,
-                        help="Number of relation types in dataset.")
+    parser.add_argument("--num_class", type=int, default=None,
+                        help="Number of relation types in dataset (optional, auto-inferred from rel2id.json if not specified).")
     parser.add_argument("--device", type=str, default="cuda",
                         help="Device to use for training (cuda or cpu).")
     parser.add_argument("--cache_dir", type=str, default="./cache",
@@ -243,6 +243,29 @@ def main():
         device = torch.device("cpu")
         args.n_gpu = 0
     args.device = device
+
+    # Load relation mapping and auto-infer num_class BEFORE creating config
+    rel2id_path = os.path.join(args.data_dir, 'meta', 'rel2id.json')
+    rel2id = json.load(open(rel2id_path, 'r'))
+    
+    actual_num_class = len(rel2id)
+    
+    # Auto-infer num_class and num_labels if not specified
+    if args.num_class is None:
+        print(f"Auto-inferring num_class from rel2id.json: {actual_num_class}")
+        args.num_class = actual_num_class
+    elif args.num_class != actual_num_class:
+        print(f"WARNING: --num_class={args.num_class} but rel2id.json has {actual_num_class} classes")
+        print(f"Auto-adjusting num_class to {actual_num_class}")
+        args.num_class = actual_num_class
+    
+    if args.num_labels is None:
+        print(f"Auto-inferring num_labels from rel2id.json: {actual_num_class}")
+        args.num_labels = actual_num_class
+    elif args.num_labels != actual_num_class:
+        print(f"WARNING: --num_labels={args.num_labels} but rel2id.json has {actual_num_class} classes")
+        print(f"Auto-adjusting num_labels to {actual_num_class}")
+        args.num_labels = actual_num_class
 
     config = AutoConfig.from_pretrained(
         args.config_name if args.config_name else args.base_model_name_or_path,
@@ -266,9 +289,6 @@ def main():
         config=config,
         cache_dir=args.cache_dir,
     )
-
-    # Load relation mapping
-    rel2id = json.load(open(args.data_dir + '/meta/rel2id.json', 'r'))
 
     # Create cache directory if it doesn't exist
     if args.use_cache:

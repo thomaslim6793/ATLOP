@@ -31,7 +31,7 @@ python test.py --data_dir ./dataset/vaccine_pathogen_docred \
 --seed 66 \
 --num_class 2 \
 --device cuda \
---load_checkpoint ./best_vaccine_model_finetune_docred_with_entity_masking.pth \
+--load_checkpoint ./best_vaccine_model_with_entity_masking.pth \
 --use_cache \
 --display_test_examples \
 --entity_masking
