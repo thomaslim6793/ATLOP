@@ -76,6 +76,93 @@ def report(args, model, features):
     return preds
 
 
+def display_positive_predictions(preds, features, id2rel, num_examples=20):
+    """Display examples where ground truth has positive relations (not N/A)"""
+    print("\n" + "="*80)
+    print("POSITIVE PREDICTION EXAMPLES (Ground Truth = Non-N/A)")
+    print("="*80)
+    
+    if len(preds) == 0:
+        print("No positive predictions found!")
+        return
+    
+    # Build a mapping from (title, h_idx, t_idx) to predicted relations
+    pred_map = {}
+    for p in preds:
+        key = (p['title'], p['h_idx'], p['t_idx'])
+        if key not in pred_map:
+            pred_map[key] = []
+        pred_map[key].append(p['r'])
+    
+    # Find examples where ground truth is positive
+    positive_examples = []
+    rel2id = {v: k for k, v in id2rel.items()}
+    
+    for feature in features:
+        title = feature.get('title', '')
+        if 'labels' not in feature:
+            continue
+            
+        for pair_idx, (h_idx, t_idx) in enumerate(feature['hts']):
+            ground_truth_labels = feature['labels'][pair_idx]
+            
+            # Check if this pair has any positive ground truth relation
+            positive_gt_relations = []
+            for rel_idx, label_value in enumerate(ground_truth_labels):
+                if label_value == 1 and rel_idx != 0:  # Positive and not N/A
+                    positive_gt_relations.append(id2rel[rel_idx])
+            
+            if positive_gt_relations:
+                # Get entity names if available
+                key = (title, h_idx, t_idx)
+                predicted_relations = pred_map.get(key, [])
+                
+                positive_examples.append({
+                    'title': title,
+                    'h_idx': h_idx,
+                    't_idx': t_idx,
+                    'ground_truth': positive_gt_relations,
+                    'predicted': predicted_relations if predicted_relations else ['N/A'],
+                    'correct': any(p in positive_gt_relations for p in predicted_relations)
+                })
+    
+    if len(positive_examples) == 0:
+        print("No positive ground truth examples found!")
+        return
+    
+    print(f"Total positive ground truth pairs: {len(positive_examples)}")
+    print(f"Showing first {min(num_examples, len(positive_examples))} examples:\n")
+    
+    for i, example in enumerate(positive_examples[:num_examples]):
+        status = "✓ CORRECT" if example['correct'] else "✗ MISSED"
+        print(f"--- Example {i+1} {status} ---")
+        print(f"Document: {example['title']}")
+        print(f"Entity pair: ({example['h_idx']}, {example['t_idx']})")
+        print(f"Ground Truth: {', '.join(example['ground_truth'])}")
+        print(f"Predicted: {', '.join(example['predicted'])}")
+        print()
+    
+    # Statistics
+    correct_count = sum(1 for ex in positive_examples if ex['correct'])
+    print("\n" + "="*80)
+    print("STATISTICS")
+    print("="*80)
+    print(f"Total positive ground truth pairs: {len(positive_examples)}")
+    print(f"Correctly predicted: {correct_count} ({100*correct_count/len(positive_examples):.1f}%)")
+    print(f"Missed: {len(positive_examples) - correct_count} ({100*(len(positive_examples)-correct_count)/len(positive_examples):.1f}%)")
+    
+    # Count relation types in predictions
+    from collections import Counter
+    all_predicted = [r for ex in positive_examples for r in ex['predicted']]
+    relation_counts = Counter(all_predicted)
+    print("\n" + "="*80)
+    print("PREDICTED RELATION DISTRIBUTION")
+    print("="*80)
+    for rel, count in relation_counts.most_common():
+        print(f"  {rel}: {count} ({100*count/len(all_predicted):.1f}%)")
+    print("="*80 + "\n")
+
+
 def display_test_examples(args, model, test_features, tokenizer, num_examples=1):
     """Display a few test examples with their inputs and predicted logits"""
     output_lines = []
@@ -342,6 +429,11 @@ def main():
     print(test_output)
     
     pred = report(args, model, test_features)
+    
+    # Display positive predictions
+    rel2id = json.load(open(args.data_dir + '/meta/rel2id.json', 'r'))
+    id2rel = {v: k for k, v in rel2id.items()}
+    display_positive_predictions(pred, test_features, id2rel, num_examples=30)
     
     # Write comprehensive test results
     test_results = {
