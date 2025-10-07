@@ -93,7 +93,7 @@ def official_evaluate(tmp, path, split="dev"):
             r = label['r']
             h_idx = label['h']
             t_idx = label['t']
-            std[(title, r, h_idx, t_idx)] = set(label['evidence'])
+            std[(title, r, h_idx, t_idx)] = set()  # Evidence not used in evaluation
             tot_evidences += len(label['evidence'])
 
     tot_relations = len(std)

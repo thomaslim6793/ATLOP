@@ -36,6 +36,8 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --num_train_epochs 20.0 \
 --seed 66 \
 --device cuda \
+--load_checkpoint ./best_docred_model_with_entity_masking.pth \
+--fine_tune \
 --save_checkpoint ./best_vaccine_model_with_entity_masking.pth \
 --save_cache \
 --use_cache \
