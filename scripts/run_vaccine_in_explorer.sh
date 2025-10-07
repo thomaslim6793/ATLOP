@@ -33,7 +33,7 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --learning_rate 2e-5 \
 --max_grad_norm 1.0 \
 --warmup_ratio 0.06 \
---num_train_epochs 10.0 \
+--num_train_epochs 20.0 \
 --seed 66 \
 --device cuda \
 --save_checkpoint ./best_vaccine_model_with_entity_masking.pth \
