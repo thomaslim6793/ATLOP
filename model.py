@@ -21,7 +21,7 @@ class DocREModel(nn.Module):
         self.block_size = block_size
         self.num_labels = num_labels
 
-    def encode(self, input_ids, attention_mask, entity_pos):
+    def encode(self, input_ids, attention_mask, entity_pos, hts=None):
         config = self.config
         if config.transformer_type == "bert":
             start_tokens = [config.cls_token_id]; end_tokens = [config.sep_token_id]
@@ -37,19 +37,43 @@ class DocREModel(nn.Module):
             if mask_id is None:
                 raise ValueError("mask_token_id not set on config/model.config")
 
+            # Get special token IDs for head/tail masking
+            head_token_id = getattr(config, "head_token_id", None)
+            tail_token_id = getattr(config, "tail_token_id", None)
+            
+            # If head/tail tokens not available, fall back to regular masking
+            use_role_masking = (head_token_id is not None and tail_token_id is not None and hts is not None)
+            
             masked_input_ids = input_ids.clone()  # [batch, seq_len]
             batch_size, seq_len = masked_input_ids.size()
+            
             for b in range(batch_size):
-                for mentions in entity_pos[b]:
+                # Create entity role mapping for this batch
+                entity_roles = {}  # entity_idx -> 'head', 'tail', or 'both'
+                if use_role_masking and b < len(hts):
+                    for head_idx, tail_idx in hts[b]:
+                        entity_roles[head_idx] = 'head'
+                        entity_roles[tail_idx] = 'tail'
+                
+                for entity_idx, mentions in enumerate(entity_pos[b]):
+                    # Determine which token to use for this entity
+                    if use_role_masking and entity_idx in entity_roles:
+                        if entity_roles[entity_idx] == 'head':
+                            token_id = head_token_id
+                        elif entity_roles[entity_idx] == 'tail':
+                            token_id = tail_token_id
+                        else:
+                            token_id = mask_id  # fallback
+                    else:
+                        token_id = mask_id  # regular masking
+                    
                     for start, end in mentions:
                         s = min(start + offset, seq_len - 1)
                         e = min(end - 1 + offset, seq_len - 1)
                         if s <= e:
                             # Mask entity content while preserving the * delimiters
-                            # The entity positions include the asterisks, so we need to mask
-                            # from start+1 (after first *) to end-1 (before last *)
-                            if e > s + 2:  # Make sure there's content between the asterisks (at least 3 tokens: * content *)
-                                masked_input_ids[b, s+1:e] = mask_id
+                            if e > s + 2:  # Make sure there's content between the asterisks
+                                masked_input_ids[b, s+1:e] = token_id
         else:
             # No masking - use original input
             masked_input_ids = input_ids
@@ -117,7 +141,7 @@ class DocREModel(nn.Module):
                 instance_mask=None,
                 ):
 
-        sequence_output, attention, masked_input_ids = self.encode(input_ids, attention_mask, entity_pos)
+        sequence_output, attention, masked_input_ids = self.encode(input_ids, attention_mask, entity_pos, hts)
         hs, rs, ts = self.get_hrt(sequence_output, attention, entity_pos, hts)
 
         hs = torch.tanh(self.head_extractor(torch.cat([hs, rs], dim=1)))
