@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=atlop_vaccine_pathogen_finetune_docred_with_entity_masking
+#SBATCH --job-name=atlop_vaccine_pathogen_no_masking_filtered_silver
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:v100-pcie:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=8:00:00
-#SBATCH --output=atlop_vaccine_pathogen_finetune_docred_with_entity_masking_%j.out
-#SBATCH --error=atlop_vaccine_pathogen_finetune_docred_with_entity_masking_%j.err
+#SBATCH --output=atlop_vaccine_pathogen_no_masking_filtered_silver_%j.out
+#SBATCH --error=atlop_vaccine_pathogen_no_masking_filtered_silver_%j.err
 
 # Load modules
 module load cuda/12.3.0
