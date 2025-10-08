@@ -51,9 +51,16 @@ def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024, silver_wei
         train_triple = {}
         if "labels" in sample:
             for label in sample['labels']:
+                # Skip silver labels without textual evidence (pure co-occurrence)
+                has_evidence = label.get('evidence_exists', True)  # Default True for backwards compat
+                is_gold = label.get('quality', 'gold') == 'gold'
+                
+                if not has_evidence and not is_gold:
+                    continue  # Skip noisy distant supervision labels
+                
                 evidence = label['evidence']
                 r = int(rel2id_file[label['r']])
-                quality = label.get('quality', 'silver')  # Default to 'silver' if not specified
+                quality = label.get('quality', 'gold')
                 if (label['h'], label['t']) not in train_triple:
                     train_triple[(label['h'], label['t'])] = [
                         {'relation': r, 'evidence': evidence, 'quality': quality}]

@@ -29,7 +29,6 @@ python test.py --data_dir ./dataset/vaccine_pathogen_docred \
 --test_batch_size 16 \
 --seed 66 \
 --device cuda \
---load_checkpoint ./best_vaccine_model_with_entity_masking.pth \
+--load_checkpoint ./best_vaccine_model_no_masking.pth \
 --use_cache \
---display_test_examples \
---entity_masking
+--display_test_examples
