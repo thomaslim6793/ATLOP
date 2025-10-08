@@ -115,6 +115,7 @@ class DocREModel(nn.Module):
                 entity_pos=None,
                 hts=None,
                 instance_mask=None,
+                instance_weights=None,
                 ):
 
         sequence_output, attention, masked_input_ids = self.encode(input_ids, attention_mask, entity_pos)
@@ -138,7 +139,17 @@ class DocREModel(nn.Module):
         if labels is not None:
             labels = [torch.tensor(label) for label in labels]
             labels = torch.cat(labels, dim=0).to(logits)
-            loss = self.loss_fnt(logits.float(), labels.float())
+            
+            # Flatten instance weights if provided (for quality weighting)
+            flat_weights = None
+            if instance_weights is not None:
+                flat_weights = []
+                for weights in instance_weights:
+                    if weights is not None:
+                        flat_weights.extend(weights)
+                flat_weights = flat_weights if flat_weights else None
+            
+            loss = self.loss_fnt(logits.float(), labels.float(), instance_weights=flat_weights)
             result['loss'] = loss.to(sequence_output)
         
         return result

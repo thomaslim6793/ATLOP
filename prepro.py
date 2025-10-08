@@ -13,7 +13,7 @@ def chunks(l, n):
     return res
 
 
-def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
+def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024, silver_weight=0.5):
     i_line = 0
     pos_samples = 0
     neg_samples = 0
@@ -53,12 +53,13 @@ def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
             for label in sample['labels']:
                 evidence = label['evidence']
                 r = int(rel2id_file[label['r']])
+                quality = label.get('quality', 'silver')  # Default to 'silver' if not specified
                 if (label['h'], label['t']) not in train_triple:
                     train_triple[(label['h'], label['t'])] = [
-                        {'relation': r, 'evidence': evidence}]
+                        {'relation': r, 'evidence': evidence, 'quality': quality}]
                 else:
                     train_triple[(label['h'], label['t'])].append(
-                        {'relation': r, 'evidence': evidence})
+                        {'relation': r, 'evidence': evidence, 'quality': quality})
 
         entity_pos = []
         for e in entities:
@@ -72,14 +73,21 @@ def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
         if len(entities) < 2:
             continue
         
-        relations, hts = [], []
+        relations, hts, quality_weights = [], [], []
         for h, t in train_triple.keys():
             relation = [0] * len(rel2id_file)
+            # Determine quality weight for this relation
+            # If any mention is gold, treat the whole relation as gold
+            # Otherwise, use the configurable silver_weight
+            has_gold = any(mention.get("quality", "gold") == "gold" for mention in train_triple[h, t])
+            quality_weight = 1.0 if has_gold else silver_weight  # Gold=1.0, Silver=configurable
+            
             for mention in train_triple[h, t]:
                 relation[mention["relation"]] = 1
                 evidence = mention["evidence"]
             relations.append(relation)
             hts.append([h, t])
+            quality_weights.append(quality_weight)
             pos_samples += 1
 
         for h in range(len(entities)):
@@ -88,6 +96,7 @@ def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
                     relation = [1] + [0] * (len(rel2id_file) - 1)
                     relations.append(relation)
                     hts.append([h, t])
+                    quality_weights.append(1.0)  # N/A relations have full weight
                     neg_samples += 1
 
         assert len(relations) == len(entities) * (len(entities) - 1)
@@ -102,6 +111,7 @@ def read_docred(rel2id_file, file_in, tokenizer, max_seq_length=1024):
                    'labels': relations,
                    'hts': hts,
                    'title': sample['title'],
+                   'quality_weights': quality_weights,
                    }
         features.append(feature)
 

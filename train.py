@@ -45,6 +45,7 @@ def train(args, model, train_features, dev_features, test_features, tokenizer):
                           'labels': batch[2],
                           'entity_pos': batch[3],
                           'hts': batch[4],
+                          'instance_weights': batch[5],  # Quality weights
                           }
                 
                 with autocast():
@@ -441,6 +442,8 @@ def main():
                         help="Save preprocessed datasets to cache.")
     parser.add_argument("--entity_masking", action="store_true",
                         help="Enable entity masking during training and inference.")
+    parser.add_argument("--silver_weight", type=float, default=0.5,
+                        help="Weight for silver quality labels relative to gold (0.0-1.0). Gold labels always have weight 1.0.")
     parser.add_argument("--pretrain_on_docred", action="store_true",
                         help="Pretrain the model on DocRED.")
     parser.add_argument("--display_test_examples", action="store_true",
@@ -523,9 +526,9 @@ def main():
     else:
         print("Processing datasets (this may take a while)...")
         # rel2id_file already loaded above
-        train_features = read(rel2id_file, train_file, tokenizer, max_seq_length=args.max_seq_length)
-        dev_features = read(rel2id_file, dev_file, tokenizer, max_seq_length=args.max_seq_length)
-        test_features = read(rel2id_file, test_file, tokenizer, max_seq_length=args.max_seq_length)
+        train_features = read(rel2id_file, train_file, tokenizer, max_seq_length=args.max_seq_length, silver_weight=args.silver_weight)
+        dev_features = read(rel2id_file, dev_file, tokenizer, max_seq_length=args.max_seq_length, silver_weight=args.silver_weight)
+        test_features = read(rel2id_file, test_file, tokenizer, max_seq_length=args.max_seq_length, silver_weight=args.silver_weight)
         
         if args.save_cache:
             print("Saving preprocessed datasets to cache...")

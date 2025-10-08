@@ -7,7 +7,7 @@ class ATLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, logits, labels):
+    def forward(self, logits, labels, instance_weights=None):
         # TH label
         th_label = torch.zeros_like(labels, dtype=torch.float).to(labels)
         th_label[:, 0] = 1.0
@@ -26,7 +26,15 @@ class ATLoss(nn.Module):
 
         # Sum two parts
         loss = loss1 + loss2
-        loss = loss.mean()
+        
+        # Apply instance weights if provided (for quality weighting)
+        if instance_weights is not None:
+            instance_weights = torch.tensor(instance_weights, dtype=torch.float).to(loss.device)
+            loss = loss * instance_weights
+            loss = loss.sum() / instance_weights.sum()  # Weighted average
+        else:
+            loss = loss.mean()
+        
         return loss
 
     def get_label(self, logits, num_labels=-1):

@@ -18,7 +18,13 @@ def collate_fn(batch):
     labels = [f["labels"] for f in batch]
     entity_pos = [f["entity_pos"] for f in batch]
     hts = [f["hts"] for f in batch]
+    
+    # Extract quality weights if available (backwards compatible)
+    quality_weights = [f.get("quality_weights", None) for f in batch]
+    if all(w is None for w in quality_weights):
+        quality_weights = None  # No quality weights in this dataset
+    
     input_ids = torch.tensor(input_ids, dtype=torch.long)
     input_mask = torch.tensor(input_mask, dtype=torch.float)
-    output = (input_ids, input_mask, labels, entity_pos, hts)
+    output = (input_ids, input_mask, labels, entity_pos, hts, quality_weights)
     return output
