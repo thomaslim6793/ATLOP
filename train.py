@@ -497,20 +497,6 @@ def main():
         args.tokenizer_name if args.tokenizer_name else args.base_model_name_or_path,
     )
     
-    # Add special tokens for head/tail entity masking
-    special_tokens = ["[HEAD]", "[TAIL]"]
-    tokenizer.add_tokens(special_tokens)
-    
-    # Get the token IDs for the special tokens
-    head_token_id = tokenizer.convert_tokens_to_ids("[HEAD]")
-    tail_token_id = tokenizer.convert_tokens_to_ids("[TAIL]")
-    
-    print(f"Added special tokens: [HEAD]={head_token_id}, [TAIL]={tail_token_id}")
-    
-    # Add special token IDs to config for the model to use
-    config.head_token_id = head_token_id
-    config.tail_token_id = tail_token_id
-    
     read = read_docred
 
     # Create cache directory if it doesn't exist
@@ -565,10 +551,6 @@ def main():
 
     set_seed(args)
     model = DocREModel(config, model, num_labels=args.num_labels)
-    
-    # Resize token embeddings for the new special tokens
-    model.model.resize_token_embeddings(len(tokenizer))
-    
     model.to(0)
 
     if args.fine_tune:  # Fine-tuning from pretrained model

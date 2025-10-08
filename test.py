@@ -445,10 +445,6 @@ def main():
 
     set_seed(args)
     model = DocREModel(config, model, num_labels=args.num_labels)
-    
-    # Resize token embeddings for the new special tokens
-    model.model.resize_token_embeddings(len(tokenizer))
-    
     model.to(0)
 
     # Load the checkpoint
