@@ -27,9 +27,7 @@ python test.py --data_dir ./dataset/vaccine_pathogen_docred \
 --dev_file dev.json \
 --test_file test.json \
 --test_batch_size 16 \
---num_labels 2 \
 --seed 66 \
---num_class 2 \
 --device cuda \
 --load_checkpoint ./best_vaccine_model_with_entity_masking.pth \
 --use_cache \

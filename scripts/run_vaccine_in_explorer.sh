@@ -41,4 +41,5 @@ python train.py --data_dir ./dataset/vaccine_pathogen_docred \
 --save_checkpoint ./best_vaccine_model_with_entity_masking.pth \
 --save_cache \
 --use_cache \
---entity_masking
+--entity_masking \
+--silver_weight 0.5
